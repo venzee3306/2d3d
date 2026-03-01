@@ -1,23 +1,16 @@
 # Deploy 2D3D now (quick steps)
 
-Neon DBs are already created. Follow these steps to get both backends and frontends live.
+**Repo is ready:** Git is initialized with one commit (backends, frontends, `render.yaml`). Neon DBs are already created.
 
 ---
 
 ## 1. Push this repo to GitHub
 
+Create a **new empty repo** on [GitHub](https://github.com/new) (e.g. `2d3d`), then run:
+
 ```bash
 cd /home/venzee-lom/Desktop/work-space/2d3d
-git init
-git add .
-git commit -m "Initial 2d3d: backends, frontends, Render blueprint"
-```
-
-Create a **new empty repo** on [GitHub](https://github.com/new) (e.g. `2d3d`), then:
-
-```bash
 git remote add origin https://github.com/YOUR_USERNAME/2d3d.git
-git branch -M main
 git push -u origin main
 ```
 
