@@ -5,7 +5,7 @@ from app.config import settings
 
 # Use sync URL for SQLite in dev if needed; plan uses PostgreSQL
 engine = create_async_engine(
-    settings.database_url,
+    settings.database_url_safe,
     echo=False,
 )
 
