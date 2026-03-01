@@ -102,9 +102,9 @@ async def place_bets(
 
 @router.get("", response_model=list[BetResponse])
 async def list_bets(
-    session_id: str | None = None,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[Player, Depends(get_current_player)],
+    session_id: str | None = None,
 ):
     q = select(Bet).where(Bet.player_id == current.id).order_by(Bet.placed_at.desc())
     if session_id:
