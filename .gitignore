@@ -1,0 +1,28 @@
+# Env and secrets (use Render/Vercel dashboard for production)
+.env
+.env.local
+.env.*.local
+DEPLOY_ENV_EXAMPLE.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+venv/
+.venv/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

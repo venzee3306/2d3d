@@ -1,0 +1,50 @@
+# Render Blueprint: deploy both backends from this repo.
+# 1. Push this repo to GitHub.
+# 2. In Render: New > Blueprint, connect the repo, apply.
+# 3. In each service, set env vars (especially DATABASE_URL from DEPLOY_ENV_EXAMPLE.md).
+# 4. After deploy, set USER_BACKEND_URL on backend-agent and CORS_ORIGINS on both.
+
+services:
+  - type: web
+    name: 2d3d-backend-agent
+    runtime: python
+    rootDir: backend-agent
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: USER_BACKEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+
+  - type: web
+    name: 2d3d-backend-user
+    runtime: python
+    rootDir: backend-user
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: AGENT_BACKEND_URL
+        sync: false
+      - key: DEFAULT_AGENT_ID
+        value: admin1
+      - key: CORS_ORIGINS
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"

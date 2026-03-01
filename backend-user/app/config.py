@@ -1,0 +1,41 @@
+import os
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    database_url: str = "postgresql+asyncpg://user:password@localhost:5432/user_db"
+    secret_key: str = "change-me-in-production"
+    agent_backend_url: str = "http://localhost:8000"
+    internal_api_key: str = "shared-internal-api-key"
+    port: int = 8001  # Override with PORT in production (Render, Railway, etc.)
+    default_agent_id: str | None = None
+    callback_retry_attempts: int = 3
+    public_api_key: str | None = None  # Required for /public routes; set in .env
+    access_token_expire_minutes: int = 60  # 1 hour
+    refresh_token_expire_days: int = 7
+    # Secure cookies (tokens in HttpOnly cookies instead of response body)
+    cookie_access_token_name: str = "user_access_token"
+    cookie_refresh_token_name: str = "user_refresh_token"
+    cookie_secure: bool = False  # Set True in production (HTTPS only); False for localhost
+    cookie_samesite: str = "lax"  # lax | strict | none
+    cookie_path: str = "/"
+    # Anti-copy: only accept token from cookie (reject Bearer); bind token to User-Agent
+    auth_cookie_only: bool = True  # If True, Authorization: Bearer is ignored (copied token won't work)
+    auth_bind_user_agent: bool = True  # Token only valid with same User-Agent (copy to other browser fails)
+    cookie_bind_name: str = "user_access_token_bind"  # Cookie storing HMAC(token, secret+User-Agent)
+    # Comma-separated origins for CORS (required when using cookies; * not allowed with credentials)
+    cors_origins: str = ""  # e.g. "https://yourapp.vercel.app,https://www.yourapp.com"
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+
+def _get_port() -> int:
+    return int(os.environ.get("PORT", "8001"))
+
+
+settings = Settings()
+# Use PORT from environment in production (Render, Railway, Fly.io set this)
+if "PORT" in os.environ:
+    settings.port = _get_port()
