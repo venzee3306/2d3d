@@ -1,6 +1,9 @@
-import React from 'react';
-import { ArrowLeft, User, Phone, Wallet, Calendar, Shield, LogOut, Globe, Bell, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, User, Phone, Wallet, Calendar, Shield, LogOut, Globe, Bell, Lock, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { useApp } from '../context/NewAppContext';
+import { userApi } from '../api/client';
 
 interface NewProfileScreenProps {
   onNavigate: (screen: string) => void;
@@ -21,9 +24,42 @@ export const NewProfileScreen: React.FC<NewProfileScreenProps> = ({
   balance,
   logout
 }) => {
+  const { refreshPlayer } = useApp();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changing, setChanging] = useState(false);
+
   const handleLogout = () => {
     if (confirm(language === 'mm' ? 'ထွက်မှာ သေချာပါသလား?' : 'Are you sure you want to logout?')) {
       logout();
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error(language === 'mm' ? 'စကားဝှက် မကိုက်ညီပါ' : 'New passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error(language === 'mm' ? 'စကားဝှက် အနည်းဆုံး ၆ လုံး ထားပါ' : 'Password must be at least 6 characters');
+      return;
+    }
+    setChanging(true);
+    try {
+      await userApi.changePassword(currentPassword, newPassword);
+      toast.success(language === 'mm' ? 'စကားဝှက် ပြောင်းပြီးပါပြီ' : 'Password changed successfully');
+      setShowChangePassword(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      await refreshPlayer();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : (language === 'mm' ? 'ပြောင်းလဲမှု မအောင်မြင်ပါ' : 'Failed to change password'));
+    } finally {
+      setChanging(false);
     }
   };
 
@@ -167,20 +203,92 @@ export const NewProfileScreen: React.FC<NewProfileScreenProps> = ({
               </div>
             </div>
 
-            {/* Change Password (Disabled) */}
-            <div className="p-4 flex items-center justify-between opacity-50">
+            {/* Change Password */}
+            <button
+              type="button"
+              onClick={() => setShowChangePassword(true)}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
                   <Lock className="text-red-600" size={18} />
                 </div>
                 <div>
                   <p className="text-gray-900 font-semibold text-sm">{t('changePassword')}</p>
-                  <p className="text-gray-500 text-xs">Coming soon</p>
+                  <p className="text-gray-500 text-xs">{language === 'mm' ? 'စကားဝှက် ပြောင်းမည်' : 'Update your password'}</p>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </div>
+
+        {/* Change Password Modal */}
+        {showChangePassword && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !changing && setShowChangePassword(false)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 flex items-center justify-between">
+                <h3 className="font-bold text-white">{t('changePassword')}</h3>
+                <button type="button" onClick={() => !changing && setShowChangePassword(false)} className="text-white/90 hover:text-white p-1">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleChangePasswordSubmit} className="p-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'mm' ? 'လက်ရှိ စကားဝှက်' : 'Current password'}</label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'mm' ? 'စကားဝှက် အသစ်' : 'New password'}</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'mm' ? 'ထပ်ရိုက်ပါ' : 'Confirm new password'}</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => !changing && setShowChangePassword(false)}
+                    className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium"
+                    disabled={changing}
+                  >
+                    {language === 'mm' ? 'ပယ်မည်' : 'Cancel'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                    disabled={changing}
+                  >
+                    {changing ? (language === 'mm' ? 'ပြောင်းနေသည်...' : 'Updating...') : (language === 'mm' ? 'ပြောင်းမည်' : 'Change')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Logout Button */}
         <button

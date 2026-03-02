@@ -21,6 +21,21 @@
 | `agentApi.approveUnitDeposit(requestId)` | POST /requests/unit-deposits/:id/approve | requests: POST /unit-deposits/{request_id}/approve | ✅ |
 | `agentApi.rejectUnitDeposit(requestId)` | POST /requests/unit-deposits/:id/reject | requests: POST /unit-deposits/{request_id}/reject | ✅ |
 
+### User management (backend-agent)
+
+| Purpose | Method + path | Status |
+|--------|----------------|--------|
+| List users (with filters) | GET /users?role=&parent_id=&search=&skip=&limit= | ✅ |
+| Current user | GET /users/me | ✅ |
+| Update own profile / password | PATCH /users/me (body: name?, current_password?, new_password?) | ✅ |
+| Change own password | POST /users/me/change-password (body: current_password, new_password) | ✅ |
+| Create user | POST /users (admin/master) | ✅ |
+| Get user | GET /users/:id | ✅ |
+| Update user | PATCH /users/:id | ✅ |
+| Delete user | DELETE /users/:id (admin) | ✅ |
+
+**List visibility:** Admin sees all; master sees self + children; agent sees only self.
+
 ## User Onboarding FE → backend-user (port 8001)
 
 | FE call | Method + path | Backend route | Status |
@@ -34,10 +49,22 @@
 | `userApi.getBets(sessionId?)` | GET /bets?session_id= | bets: GET "" | ✅ |
 | `userApi.getTransactions` | GET /transactions | transactions: GET "" | ✅ |
 
+### Player / self management (backend-user)
+
+| Purpose | Method + path | Status |
+|--------|----------------|--------|
+| Current player | GET /players/me | ✅ |
+| Update own profile / password | PATCH /players/me (body: name?, phone_number?, current_password?, new_password?) | ✅ |
+| Change own password | POST /auth/change-password (body: current_password, new_password) | ✅ |
+
 ## Internal / other (not called by FEs)
 
 - **backend-user**  
   - POST /bets/settle (internal API key) – used by draw/settlement.  
+  - GET /internal/players?agent_id=&status=&skip=&limit= – list players (X-Internal-API-Key).  
+  - GET /internal/players/:id – get one player (X-Internal-API-Key).  
+  - PATCH /internal/players/:id – update player name, phone_number, status (X-Internal-API-Key).  
+  - GET /internal/players/:id/balance – player balance (X-Internal-API-Key).  
   - POST /public/players, GET /public/players/:id/balance, GET /public/players/:id/history, POST /public/players/:id/bets – for external platforms (X-API-Key).
 - **backend-agent**  
   - Internal sync (e.g. POST /internal/players) – used by backend-user to sync players.

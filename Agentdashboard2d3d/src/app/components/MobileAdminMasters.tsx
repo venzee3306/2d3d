@@ -70,28 +70,30 @@ export function MobileAdminMasters({
     return allPlayers.filter(p => p.agentId && masterAgentIds.includes(p.agentId));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingUser) {
-      // Only pass the fields that are part of the User interface
-      onEditUser(editingUser.id, {
-        name: formData.name,
-        username: formData.username,
-        password: formData.password
-      });
-    } else {
-      // Only pass the fields that are part of the User interface
-      onAddUser({
-        name: formData.name,
-        username: formData.username,
-        password: formData.password,
-        role: 'master',
-        parentId: currentUser.id
-      });
+
+    try {
+      if (editingUser) {
+        await onEditUser(editingUser.id, {
+          name: formData.name,
+          username: formData.username,
+          password: formData.password,
+        });
+      } else {
+        await onAddUser({
+          name: formData.name,
+          username: formData.username,
+          password: formData.password,
+          role: 'master',
+          parentId: currentUser.id,
+        });
+      }
+
+      handleCloseModal();
+    } catch {
+      // Error toast shown by App
     }
-    
-    handleCloseModal();
   };
 
   const handleEdit = (user: User) => {

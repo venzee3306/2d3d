@@ -2,6 +2,8 @@
 
 **Repo is ready:** Git is initialized with one commit (backends, frontends, `render.yaml`). Neon DBs are already created.
 
+**Full checklist:** See **DEPLOY_PROCEED.md** for the step-by-step deployment flow.
+
 ---
 
 ## 1. Push this repo to GitHub

@@ -61,3 +61,16 @@ class RefreshResponse(BaseModel):
     """When using cookies, access_token is set in cookie; body can be empty or this."""
     access_token: str | None = None  # None when using cookies
     token_type: str = "bearer"
+
+
+class PlayerMeUpdate(BaseModel):
+    """Update own profile. For password change, current_password is required."""
+    name: str | None = None
+    phone_number: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str

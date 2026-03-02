@@ -1252,16 +1252,21 @@ export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositR
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (onAddUser && newMasterData.name && newMasterData.username && newMasterData.password) {
-                      onAddUser({
-                        name: newMasterData.name,
-                        username: newMasterData.username,
-                        password: newMasterData.password,
-                        role: 'master'
-                      });
-                      setShowAddMasterModal(false);
-                      setNewMasterData({ name: '', username: '', password: '' });
+                      try {
+                        await onAddUser({
+                          name: newMasterData.name,
+                          username: newMasterData.username,
+                          password: newMasterData.password,
+                          role: 'master',
+                          parentId: currentUser.id,
+                        });
+                        setShowAddMasterModal(false);
+                        setNewMasterData({ name: '', username: '', password: '' });
+                      } catch {
+                        // Error toast shown by App
+                      }
                     }
                   }}
                   disabled={!newMasterData.name || !newMasterData.username || !newMasterData.password}

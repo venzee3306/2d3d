@@ -66,6 +66,11 @@ Then in **Agent backend** env, set `USER_BACKEND_URL` to this User backend URL a
 
 1. Sign up at [vercel.com](https://vercel.com) and import your repo.
 
+**Proceed (pick one):**
+
+- **Option A – Dashboard:** [vercel.com/new](https://vercel.com/new) → Import **venzee3306/2d3d** twice. First project: root **Useronboarding**, env `VITE_USER_API_URL` = your User backend URL. Second project: root **Agentdashboard2d3d**, env `VITE_AGENT_API_URL` = your Agent backend URL. Deploy both, then set those URLs in Render **CORS_ORIGINS**.
+- **Option B – CLI:** Run once `vercel login`, then from repo root: `./scripts/deploy-vercel.sh`. Or with a token: `VERCEL_TOKEN=your_token ./scripts/deploy-vercel.sh` ([create token](https://vercel.com/account/tokens)). After deploy, set the two frontend URLs in Render **CORS_ORIGINS** and in each Vercel project set the `VITE_*_API_URL` env vars to your Render backend URLs.
+
 ### User Onboarding app
 
 1. **Add New Project** → same repo.

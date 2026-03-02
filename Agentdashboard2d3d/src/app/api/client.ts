@@ -107,7 +107,40 @@ export const agentApi = {
       body: JSON.stringify({ username, password }),
       credentials: 'include',
     }),
-  getUsers: () => api<AgentUser[]>('/users'),
+  getUsers: (params?: { role?: string; parent_id?: string; search?: string; skip?: number; limit?: number }) => {
+    const sp = new URLSearchParams();
+    if (params?.role) sp.set('role', params.role);
+    if (params?.parent_id) sp.set('parent_id', params.parent_id);
+    if (params?.search) sp.set('search', params.search);
+    if (params?.skip != null) sp.set('skip', String(params.skip));
+    if (params?.limit != null) sp.set('limit', String(params.limit));
+    const q = sp.toString();
+    return api<AgentUser[]>(`/users${q ? `?${q}` : ''}`);
+  },
+  createUser: (data: { name: string; username: string; password: string; role: string; parent_id?: string | null }) =>
+    api<AgentUser>('/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name,
+        username: data.username,
+        password: data.password,
+        role: data.role,
+        parent_id: data.parent_id ?? null,
+      }),
+    }),
+  updateUser: (userId: string, data: { name?: string; username?: string; password?: string; role?: string; parent_id?: string | null }) =>
+    api<AgentUser>(`/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.username !== undefined && { username: data.username }),
+        ...(data.password !== undefined && data.password !== '' && { password: data.password }),
+        ...(data.role !== undefined && { role: data.role }),
+        ...(data.parent_id !== undefined && { parent_id: data.parent_id }),
+      }),
+    }),
+  deleteUser: (userId: string) =>
+    api<{ ok: boolean }>(`/users/${userId}`, { method: 'DELETE' }),
   getPlayers: (agentId?: string) =>
     api<AgentPlayer[]>(agentId ? `/players?agent_id=${encodeURIComponent(agentId)}` : '/players'),
   getMyBalance: () => api<BalanceResponse>('/balances/me'),

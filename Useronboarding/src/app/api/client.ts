@@ -153,6 +153,16 @@ export const userApi = {
       credentials: 'include',
     }),
   me: () => api<ApiPlayer>('/players/me'),
+  updateMe: (data: { name?: string; phone_number?: string; current_password?: string; new_password?: string }) =>
+    api<ApiPlayer>('/players/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  changePassword: (current_password: string, new_password: string) =>
+    api<{ ok: boolean }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
+    }),
   getSessions: () => api<ApiSession[]>('/sessions'),
   createSession: (data: { round_name: string; date: string }) =>
     api<ApiSession>('/sessions', {

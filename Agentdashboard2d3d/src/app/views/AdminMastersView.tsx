@@ -51,19 +51,22 @@ export function AdminMastersView({ currentUser, allUsers, onAddUser, onEditUser,
     return agents.filter(a => a.parentId === masterId);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingUser) {
-      onEditUser(editingUser.id, formData);
-    } else {
-      onAddUser({
-        ...formData,
-        parentId: currentUser.id
-      });
+
+    try {
+      if (editingUser) {
+        await onEditUser(editingUser.id, formData);
+      } else {
+        await onAddUser({
+          ...formData,
+          parentId: currentUser.id,
+        });
+      }
+      handleCloseModal();
+    } catch {
+      // Error toast shown by App
     }
-    
-    handleCloseModal();
   };
 
   const handleEdit = (user: User) => {

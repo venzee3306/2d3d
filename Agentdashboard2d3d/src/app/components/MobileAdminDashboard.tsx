@@ -124,21 +124,25 @@ export function MobileAdminDashboard({
     setSelectedRequest(null);
   };
 
-  const handleAddMaster = () => {
+  const handleAddMaster = async () => {
     if (newMasterData.name && newMasterData.username && newMasterData.password) {
-      onAddUser({
-        name: newMasterData.name,
-        username: newMasterData.username,
-        password: newMasterData.password,
-        role: 'master',
-        parentId: currentUser.id
-      });
-      setShowAddMasterModal(false);
-      setNewMasterData({
-        name: '',
-        username: '',
-        password: ''
-      });
+      try {
+        await onAddUser({
+          name: newMasterData.name,
+          username: newMasterData.username,
+          password: newMasterData.password,
+          role: 'master',
+          parentId: currentUser.id,
+        });
+        setShowAddMasterModal(false);
+        setNewMasterData({
+          name: '',
+          username: '',
+          password: '',
+        });
+      } catch {
+        // Error toast shown by App
+      }
     }
   };
 

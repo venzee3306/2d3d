@@ -22,6 +22,18 @@ class UserUpdate(BaseModel):
     parent_id: str | None = None
 
 
+class MeUpdate(BaseModel):
+    """Update own profile. If new_password is set, current_password is required."""
+    name: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class UserResponse(UserBase):
     id: str
 

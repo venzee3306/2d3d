@@ -20,7 +20,7 @@ import { WithdrawalsView } from './views/WithdrawalsView';
 import { PlayerBetEntryModal } from './components/PlayerBetEntryModal';
 import type { UnitBalance, UnitTransfer, DepositRequest, WithdrawalRequest, UnitDepositRequest } from './types/units';
 import { RequestManagementView } from './views/RequestManagementView';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { getAuthToken, setAuthToken, agentApi } from './api/client';
 
 // Lottery Agent Management System - Main Application
@@ -769,22 +769,46 @@ export default function App() {
   const refetchAgentData = async () => {
     if (!currentUser || !getAuthToken()) return;
     try {
-      const [balanceRes, depRes, wdrawRes, unitRes] = await Promise.all([
+      const [usersRes, playersRes, balanceRes, depRes, wdrawRes, unitRes] = await Promise.all([
+        agentApi.getUsers(),
+        agentApi.getPlayers(),
         agentApi.getMyBalance(),
         agentApi.getDepositRequests().catch(() => []),
         agentApi.getWithdrawalRequests().catch(() => []),
         agentApi.getUnitDepositRequests().catch(() => []),
       ]);
-      setUserBalances(prev => ({ ...prev, [balanceRes.user_id]: balanceRes.balance }));
-      const usersRes = await agentApi.getUsers();
-      const balanceByUser = await Promise.all(usersRes.map(async u => {
-        try { const b = await agentApi.getBalance(u.id); return [u.id, b.balance] as const; } catch { return [u.id, 0] as const; }
-      }));
-      setUserBalances(prev => {
-        const next = { ...prev };
-        balanceByUser.forEach(([id, bal]) => { next[id] = bal; });
-        return next;
-      });
+      setUsers(usersRes.map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        password: '',
+        role: u.role,
+        parentId: u.parent_id ?? undefined,
+      })));
+      setPlayers(playersRes.map(p => ({
+        id: p.player_id,
+        name: p.name,
+        password: '',
+        phoneNumber: p.phone_number ?? '',
+        totalBets: p.total_bets,
+        totalAmount: p.total_amount,
+        winAmount: p.win_amount,
+        lossAmount: p.loss_amount,
+        currentBalance: p.current_balance,
+        status: p.status === 'active' ? 'active' : 'inactive',
+        createdAt: '',
+        lastBetDate: p.last_bet_at ?? undefined,
+        agentId: p.agent_id,
+      })));
+      const nextBalances: { [userId: string]: number } = { [balanceRes.user_id]: balanceRes.balance };
+      const balanceByUser = await Promise.all(
+        usersRes.filter(u => u.id !== balanceRes.user_id).map(async u => {
+          try { const b = await agentApi.getBalance(u.id); return [u.id, b.balance] as const; } catch { return [u.id, 0] as const; }
+        }),
+      );
+      balanceByUser.forEach(([id, bal]) => { nextBalances[id] = bal; });
+      playersRes.forEach(p => { nextBalances[p.player_id] = p.current_balance; });
+      setUserBalances(prev => ({ ...prev, ...nextBalances }));
       setDepositRequests((depRes as Array<{ id: string; player_id: string; player_name: string; agent_id: string; amount: number; transaction_id: string; payment_method: string | null; status: string; requested_at: string; note: string | null }>).map(r => ({
         id: r.id, playerId: r.player_id, playerName: r.player_name, agentId: r.agent_id, amount: r.amount, transactionId: r.transaction_id, paymentMethod: r.payment_method ?? undefined, status: r.status as 'pending' | 'approved' | 'rejected', requestedAt: r.requested_at, note: r.note ?? undefined,
       })));
@@ -836,35 +860,76 @@ export default function App() {
     setTransactions(prev => [transaction, ...prev]);
   };
 
-  // User Management Functions (for Admin and Master)
-  const handleAddUser = (userData: Omit<User, 'id'>) => {
+  // User Management Functions (for Admin and Master) – bound to backend when logged in via API
+  const handleAddUser = async (userData: Omit<User, 'id'>) => {
+    if (getAuthToken()) {
+      try {
+        await agentApi.createUser({
+          name: userData.name,
+          username: userData.username,
+          password: userData.password,
+          role: userData.role,
+          parent_id: userData.parentId ?? null,
+        });
+        await refetchAgentData();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to create user');
+        throw e;
+      }
+      return;
+    }
     const newUser: User = {
       ...userData,
-      id: `u${Date.now()}`
+      id: `u${Date.now()}`,
     };
     setUsers([...users, newUser]);
-    
-    // Initialize unit balance for new user
-    setUserBalances(prev => ({
-      ...prev,
-      [newUser.id]: 0
-    }));
+    setUserBalances(prev => ({ ...prev, [newUser.id]: 0 }));
   };
 
-  const handleEditUser = (id: string, updatedData: Partial<User>) => {
-    setUsers(users.map(user => 
-      user.id === id ? { ...user, ...updatedData } : user
+  const handleEditUser = async (id: string, updatedData: Partial<User>) => {
+    if (getAuthToken()) {
+      try {
+        await agentApi.updateUser(id, {
+          name: updatedData.name,
+          username: updatedData.username,
+          password: updatedData.password && updatedData.password !== '' ? updatedData.password : undefined,
+          role: updatedData.role,
+          parent_id: updatedData.parentId !== undefined ? updatedData.parentId ?? null : undefined,
+        });
+        await refetchAgentData();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to update user');
+        throw e;
+      }
+      return;
+    }
+    setUsers(users.map(user =>
+      user.id === id ? { ...user, ...updatedData } : user,
     ));
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = async (id: string) => {
+    if (getAuthToken()) {
+      try {
+        await agentApi.deleteUser(id);
+        await refetchAgentData();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to delete user');
+        throw e;
+      }
+      const userToDelete = users.find(u => u.id === id);
+      if (userToDelete?.role === 'agent') {
+        const newBlockedNumbers = { ...blockedNumbers };
+        delete newBlockedNumbers[id];
+        setBlockedNumbers(newBlockedNumbers);
+      }
+      return;
+    }
     setUsers(users.filter(user => user.id !== id));
-    // Also delete associated players if deleting an agent
     const userToDelete = users.find(u => u.id === id);
     if (userToDelete?.role === 'agent') {
       setPlayers(players.filter(p => p.agentId !== id));
     }
-    // Also delete blocked numbers for this agent
     if (userToDelete?.role === 'agent') {
       const newBlockedNumbers = { ...blockedNumbers };
       delete newBlockedNumbers[id];

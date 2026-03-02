@@ -14,6 +14,7 @@ from app.auth import (
     hash_refresh_token,
     create_refresh_token_plain,
     compute_token_bind,
+    get_current_player,
 )
 from app.config import settings
 from app.database import get_db
@@ -25,6 +26,7 @@ from app.schemas.player import (
     LoginResponse,
     RefreshRequest,
     RefreshResponse,
+    ChangePasswordRequest,
 )
 from app.services.sync_to_agent import sync_player_to_agent
 
@@ -223,4 +225,19 @@ async def refresh(
 async def logout(response: Response):
     """Clear auth cookies. No body; call with credentials (cookie) to clear."""
     _clear_auth_cookies(response)
+    return {"ok": True}
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[Player, Depends(get_current_player)],
+):
+    """Change own password. Requires current password. Uses get_current_player (cookie)."""
+    if not verify_password(data.current_password, current.password_hash):
+        raise HTTPException(status_code=400, detail="current_password is incorrect")
+    current.password_hash = hash_password(data.new_password)
+    await db.flush()
     return {"ok": True}

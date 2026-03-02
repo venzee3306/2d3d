@@ -1,3 +1,5 @@
+import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,10 +9,17 @@ from app.config import settings
 from app.database import init_db
 from app.routers import health, auth, players, sessions, bets, transactions, internal_sync, public_api
 
+logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    try:
+        await init_db()
+    except Exception as e:
+        logger.exception("Startup failed (init_db): %s", e)
+        raise
     yield
 
 

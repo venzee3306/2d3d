@@ -65,18 +65,18 @@ export function MasterAgentsView({ currentUser, allUsers, allPlayers, onAddUser,
     return allPlayers.filter(p => p.agentId === agentId);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Master's commission rate (mock data - in real app would come from currentUser)
     const masterCommissionRate = 17;
-    
+
     // Validate commission rate
     if (formData.commissionRate > masterCommissionRate) {
       alert(`Commission rate cannot exceed Master's rate (${masterCommissionRate}%)`);
       return;
     }
-    
+
     // Validate limits
     if (formData.totalBetLimit <= 0) {
       alert('Total bet limit must be greater than 0');
@@ -92,24 +92,28 @@ export function MasterAgentsView({ currentUser, allUsers, allPlayers, onAddUser,
       alert('Single number limit cannot exceed total bet limit');
       return;
     }
-    
-    if (editingUser) {
-      onEditUser(editingUser.id, { 
-        name: formData.agentName,
-        username: formData.username,
-        password: formData.password
-      });
-    } else {
-      onAddUser({
-        name: formData.agentName,
-        username: formData.username,
-        password: formData.password,
-        role: 'agent',
-        parentId: currentUser.id
-      });
+
+    try {
+      if (editingUser) {
+        await onEditUser(editingUser.id, {
+          name: formData.agentName,
+          username: formData.username,
+          password: formData.password,
+        });
+      } else {
+        await onAddUser({
+          name: formData.agentName,
+          username: formData.username,
+          password: formData.password,
+          role: 'agent',
+          parentId: currentUser.id,
+        });
+      }
+
+      handleCloseModal();
+    } catch {
+      // Error toast shown by App
     }
-    
-    handleCloseModal();
   };
 
   const handleEdit = (user: User) => {

@@ -27,6 +27,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  refreshPlayer: () => Promise<void>;
   
   // Language
   language: Language;
@@ -172,6 +173,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return true;
       }
       return false;
+    }
+  };
+
+  const refreshPlayer = async () => {
+    if (!getAuthToken()) return;
+    try {
+      const apiPlayer = await userApi.me();
+      const p = mapApiPlayerToPlayer(apiPlayer);
+      setPlayer(p);
+      setBalance(p.balance);
+    } catch {
+      // Session may have expired
     }
   };
 
@@ -370,6 +383,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isAuthenticated,
         login,
         logout,
+        refreshPlayer,
         language,
         setLanguage,
         t,
