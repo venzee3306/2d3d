@@ -64,6 +64,14 @@ Then in **Agent backend** env, set `USER_BACKEND_URL` to this User backend URL a
 
 ## 3. Frontends (Vercel – free)
 
+**Submodules:** The Dashboard and User onboarding apps are Git submodules. After cloning the main repo, run:
+
+```bash
+git submodule update --init --recursive
+```
+
+to populate `Agentdashboard2d3d/` and `Useronboarding/`. Submodule URLs: `git@github.com:venzee3306/Agentdashboard2d3d.git`, `git@github.com:venzee3306/Useronboarding.git`.
+
 1. Sign up at [vercel.com](https://vercel.com) and import your repo.
 
 **Proceed (pick one):**
@@ -93,9 +101,28 @@ Then in **Agent backend** env, set `USER_BACKEND_URL` to this User backend URL a
 
 ---
 
-## 4. Cookies and CORS (cross-origin)
+## 4. Live URLs (custom domains)
 
-- Frontends (Vercel) and backends (Render) are on **different origins**, so the browser sends cookies only if:
+| App | URL |
+|-----|-----|
+| **Dashboard (Agent)** | https://2d3d-eonb.milliontechsteps.com/ |
+| **User onboarding** | https://2d3d-pi.milliontechsteps.com/ |
+
+**On both Render backends**, set **CORS_ORIGINS** to (comma-separated, no trailing slashes):
+
+```
+https://2d3d-eonb.milliontechsteps.com,https://2d3d-pi.milliontechsteps.com
+```
+
+**Build env for each frontend** (Vercel/host):  
+- Dashboard project: `VITE_AGENT_API_URL` = your Agent backend URL (e.g. `https://twod3d-backend-agent.onrender.com`).  
+- User project: `VITE_USER_API_URL` = your User backend URL (e.g. `https://twod3d-backend-user.onrender.com`).
+
+---
+
+## 5. Cookies and CORS (cross-origin)
+
+- Frontends and backends are on **different origins**, so the browser sends cookies only if:
   - Backends use **HTTPS** (Render does).
   - You set `COOKIE_SECURE=true` and `COOKIE_SAMESITE=none` for cross-site cookies, **or** you keep `SameSite=Lax` and accept that cookies are sent only when the user opens your app from the same site (e.g. links from the same Vercel domain).
 - For **same-site**: if you put both frontends under one Vercel project (e.g. `yourapp.vercel.app` and `yourapp-agent.vercel.app`), Lax is usually enough.
@@ -107,7 +134,7 @@ Then in **Agent backend** env, set `USER_BACKEND_URL` to this User backend URL a
 
 ---
 
-## 5. Quick reference
+## 6. Quick reference
 
 | What        | Service | Free tier |
 |------------|---------|-----------|
@@ -123,7 +150,7 @@ Then in **Agent backend** env, set `USER_BACKEND_URL` to this User backend URL a
 
 ---
 
-## 6. Neon, Render, and Vercel MCP (deploy from Cursor)
+## 7. Neon, Render, and Vercel MCP (deploy from Cursor)
 
 You can manage Neon (databases), Render (backends), and Vercel (frontends) from Cursor using their official MCP servers. Once configured, you can use natural language to create projects, run SQL, deploy services, and view logs.
 
@@ -258,7 +285,7 @@ You can still follow the manual steps in this doc; the MCPs let you do the same 
 
 ---
 
-## 7. After deploy
+## 8. After deploy
 
 - **Agent backend:** open `https://your-agent-backend.onrender.com/docs` and log in (e.g. admin / admin123 if you seeded that user).
 - **User backend:** open `https://your-user-backend.onrender.com/docs` to try the API.
