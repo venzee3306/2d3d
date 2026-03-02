@@ -10,10 +10,10 @@ if [ -n "${VERCEL_TOKEN:-}" ]; then
 fi
 echo "Deploying User Onboarding..."
 cd "$ROOT/Useronboarding"
-$VERCEL_CMD
+$VERCEL_CMD --name useronboarding
 echo ""
 echo "Deploying Agent Dashboard..."
 cd "$ROOT/Agentdashboard2d3d"
-$VERCEL_CMD
+$VERCEL_CMD --name agentdashboard2d3d
 echo ""
 echo "Done. Set the returned URLs in Render CORS_ORIGINS and as VITE_*_API_URL if not already."

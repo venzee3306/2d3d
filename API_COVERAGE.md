@@ -5,6 +5,7 @@
 | FE call | Method + path | Backend route | Status |
 |--------|----------------|---------------|--------|
 | `agentApi.login` | POST /auth/login | auth: POST /login | ✅ |
+| `agentApi.getStats` | GET /stats | stats: GET "" | ✅ |
 | `agentApi.getUsers` | GET /users | users: GET "" | ✅ |
 | `agentApi.getPlayers(agentId?)` | GET /players?agent_id= | players: GET "" | ✅ |
 | `agentApi.getMyBalance` | GET /balances/me | balances: GET /me | ✅ |
@@ -20,6 +21,14 @@
 | `agentApi.rejectWithdrawal(requestId)` | POST /requests/withdrawals/:id/reject | requests: POST /withdrawals/{request_id}/reject | ✅ |
 | `agentApi.approveUnitDeposit(requestId)` | POST /requests/unit-deposits/:id/approve | requests: POST /unit-deposits/{request_id}/approve | ✅ |
 | `agentApi.rejectUnitDeposit(requestId)` | POST /requests/unit-deposits/:id/reject | requests: POST /unit-deposits/{request_id}/reject | ✅ |
+
+### Dashboard / Analytics (backend-agent)
+
+| Purpose | Method + path | Status |
+|--------|----------------|--------|
+| Dashboard stats (totals for Analytics) | GET /stats → `{ total_masters, total_agents, total_players, total_bet_volume }` | ✅ |
+
+After login with the real backend, the Agent Dashboard fetches **users**, **players**, **stats**, **balances**, and **requests** in one batch. A loading screen is shown until this completes, so Analytics, Masters, Units, Withdrawals, and Transactions all use API data (no hardcoded list).
 
 ### User management (backend-agent)
 

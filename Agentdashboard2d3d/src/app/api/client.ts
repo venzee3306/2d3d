@@ -107,6 +107,7 @@ export const agentApi = {
       body: JSON.stringify({ username, password }),
       credentials: 'include',
     }),
+  getStats: () => api<{ total_masters: number; total_agents: number; total_players: number; total_bet_volume: number }>('/stats'),
   getUsers: (params?: { role?: string; parent_id?: string; search?: string; skip?: number; limit?: number }) => {
     const sp = new URLSearchParams();
     if (params?.role) sp.set('role', params.role);

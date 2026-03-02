@@ -19,6 +19,13 @@ interface Player {
   agentId?: string;
 }
 
+interface ApiStats {
+  total_masters: number;
+  total_agents: number;
+  total_players: number;
+  total_bet_volume: number;
+}
+
 interface MasterDashboardProps {
   currentUser: User;
   allUsers: User[];
@@ -36,11 +43,12 @@ interface MasterDashboardProps {
     paymentScreenshot?: string;
     note?: string;
   }) => void;
+  apiStats?: ApiStats | null;
 }
 
 type TimePeriod = 'daily' | 'weekly' | 'monthly';
 
-export function MasterDashboard({ currentUser, allUsers, allPlayers, currentBalance = 0, userBalances = {}, pendingDepositRequests = [], myUnitDepositRequests = [], onApproveDeposit, onRejectDeposit, onRequestUnitDeposit }: MasterDashboardProps) {
+export function MasterDashboard({ currentUser, allUsers, allPlayers, currentBalance = 0, userBalances = {}, pendingDepositRequests = [], myUnitDepositRequests = [], onApproveDeposit, onRejectDeposit, onRequestUnitDeposit, apiStats = null }: MasterDashboardProps) {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('daily');
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [selectedAgent, setSelectedAgent] = useState<User | null>(null);
@@ -167,15 +175,15 @@ export function MasterDashboard({ currentUser, allUsers, allPlayers, currentBala
   };
 
   const getStatsForPeriod = () => {
-    const baseStats = {
-      agents: myAgents.length,
-      players: myPlayers.length
-    };
+    const baseStats = apiStats
+      ? { agents: apiStats.total_agents, players: apiStats.total_players }
+      : { agents: myAgents.length, players: myPlayers.length };
+    const revenueFromApi = apiStats ? apiStats.total_bet_volume : 0;
 
     if (timePeriod === 'daily') {
       return {
         ...baseStats,
-        revenue: 2300000,
+        revenue: revenueFromApi || 2300000,
         bets: 402,
         growth: '+12%',
         comparison: 'vs yesterday'
@@ -183,7 +191,7 @@ export function MasterDashboard({ currentUser, allUsers, allPlayers, currentBala
     } else if (timePeriod === 'weekly') {
       return {
         ...baseStats,
-        revenue: 14850000,
+        revenue: revenueFromApi || 14850000,
         bets: 2610,
         growth: '+18%',
         comparison: 'vs last week'
@@ -191,7 +199,7 @@ export function MasterDashboard({ currentUser, allUsers, allPlayers, currentBala
     } else {
       return {
         ...baseStats,
-        revenue: 57600000,
+        revenue: revenueFromApi || 57600000,
         bets: 10900,
         growth: '+15%',
         comparison: 'vs last month'

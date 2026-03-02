@@ -36,6 +36,13 @@ interface UnitDepositRequest {
   rejectionReason?: string;
 }
 
+interface ApiStats {
+  total_masters: number;
+  total_agents: number;
+  total_players: number;
+  total_bet_volume: number;
+}
+
 interface AdminDashboardProps {
   currentUser: User;
   allUsers: User[];
@@ -46,11 +53,12 @@ interface AdminDashboardProps {
   onRejectDeposit?: (requestId: string, reason: string) => void;
   onAddUser?: (userData: Omit<User, 'id'>) => void;
   userBalances?: { [userId: string]: number };
+  apiStats?: ApiStats | null;
 }
 
 type TimePeriod = 'daily' | 'weekly' | 'monthly';
 
-export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositRequests, onNavigateToWithdrawals, onApproveDeposit, onRejectDeposit, onAddUser, userBalances = {} }: AdminDashboardProps) {
+export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositRequests, onNavigateToWithdrawals, onApproveDeposit, onRejectDeposit, onAddUser, userBalances = {}, apiStats = null }: AdminDashboardProps) {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('daily');
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
@@ -149,16 +157,15 @@ export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositR
   };
 
   const getStatsForPeriod = () => {
-    const baseStats = {
-      masters: masters.length,
-      agents: agents.length,
-      players: allPlayers.length
-    };
+    const baseStats = apiStats
+      ? { masters: apiStats.total_masters, agents: apiStats.total_agents, players: apiStats.total_players }
+      : { masters: masters.length, agents: agents.length, players: allPlayers.length };
+    const revenueFromApi = apiStats ? apiStats.total_bet_volume : 0;
 
     if (timePeriod === 'daily') {
       return {
         ...baseStats,
-        revenue: 4850000,
+        revenue: revenueFromApi || 4850000,
         bets: 1250,
         growth: '+15%',
         comparison: 'vs yesterday'
@@ -166,7 +173,7 @@ export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositR
     } else if (timePeriod === 'weekly') {
       return {
         ...baseStats,
-        revenue: 29700000,
+        revenue: revenueFromApi || 29700000,
         bets: 5323,
         growth: '+22%',
         comparison: 'vs last week'
@@ -174,7 +181,7 @@ export function AdminDashboard({ currentUser, allUsers, allPlayers, unitDepositR
     } else {
       return {
         ...baseStats,
-        revenue: 115200000,
+        revenue: revenueFromApi || 115200000,
         bets: 21800,
         growth: '+18%',
         comparison: 'vs last month'

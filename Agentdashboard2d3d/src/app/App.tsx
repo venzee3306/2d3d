@@ -205,6 +205,10 @@ export default function App() {
   
   const [dashboardBets, setDashboardBets] = useState<DashboardBet[]>([]);
 
+  // API-backed dashboard stats (Analytics page); null until loaded or when using demo data
+  const [apiStats, setApiStats] = useState<{ total_masters: number; total_agents: number; total_players: number; total_bet_volume: number } | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
   // Shared state for betting records (မှတ်တမ်း)
   const [savedRecords, setSavedRecords] = useState<SavedRecord[]>([]);
 
@@ -660,18 +664,26 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // When logged in via API, load users, players, and balances from backend
+  // When no API token (demo mode), don't block on initial load
+  useEffect(() => {
+    if (!getAuthToken()) setInitialLoadDone(true);
+  }, [currentUser?.id]);
+
+  // When logged in via API, load users, players, stats, and balances from backend
   useEffect(() => {
     if (!currentUser || !getAuthToken()) return;
+    setInitialLoadDone(false);
     let cancelled = false;
     (async () => {
       try {
-        const [usersRes, playersRes, balanceRes] = await Promise.all([
+        const [usersRes, playersRes, balanceRes, statsRes] = await Promise.all([
           agentApi.getUsers(),
           agentApi.getPlayers(),
           agentApi.getMyBalance(),
+          agentApi.getStats(),
         ]);
         if (cancelled) return;
+        setApiStats(statsRes);
         setUsers(usersRes.map(u => ({
           id: u.id,
           name: u.name,
@@ -761,6 +773,8 @@ export default function App() {
         if (!cancelled) {
           setAuthToken(null);
         }
+      } finally {
+        if (!cancelled) setInitialLoadDone(true);
       }
     })();
     return () => { cancelled = true; };
@@ -769,14 +783,16 @@ export default function App() {
   const refetchAgentData = async () => {
     if (!currentUser || !getAuthToken()) return;
     try {
-      const [usersRes, playersRes, balanceRes, depRes, wdrawRes, unitRes] = await Promise.all([
+      const [usersRes, playersRes, balanceRes, statsRes, depRes, wdrawRes, unitRes] = await Promise.all([
         agentApi.getUsers(),
         agentApi.getPlayers(),
         agentApi.getMyBalance(),
+        agentApi.getStats(),
         agentApi.getDepositRequests().catch(() => []),
         agentApi.getWithdrawalRequests().catch(() => []),
         agentApi.getUnitDepositRequests().catch(() => []),
       ]);
+      setApiStats(statsRes);
       setUsers(usersRes.map(u => ({
         id: u.id,
         name: u.name,
@@ -1060,6 +1076,18 @@ export default function App() {
   // Determine if mobile view should be shown
   const showMobile = isMobile || forceMobile;
 
+  // When logged in via API, show loading until first data fetch completes (so all pages use API data)
+  if (currentUser && getAuthToken() && !initialLoadDone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show login page if no user is logged in
   if (!currentUser) {
     // Check if we're in demo mode
@@ -1177,6 +1205,7 @@ export default function App() {
               onRejectDeposit={handleRejectUnitDeposit}
               onAddUser={handleAddUser}
               userBalances={userBalances}
+              apiStats={apiStats}
             />
           )}
           {activeTab === 'masters' && (
@@ -1232,6 +1261,7 @@ export default function App() {
               myUnitDepositRequests={unitDepositRequests.filter(r => r.requesterId === currentUser.id)}
               onApproveDeposit={handleApproveUnitDeposit}
               onRejectDeposit={handleRejectUnitDeposit}
+              apiStats={apiStats}
               onRequestUnitDeposit={handleRequestUnitDeposit}
             />
           )}
