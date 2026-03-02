@@ -41,21 +41,17 @@ export function LoginPage({ users, onLogin }: LoginPageProps) {
         role: u.role as 'admin' | 'master' | 'agent',
         parentId: u.parent_id ?? undefined,
       });
-      return;
-    } catch {
-      // API failed or not configured; fall back to local users
+    } catch (err) {
+      // Do not fall back to demo: if API login failed, stay on login page and show error
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setError(
+        message.includes('CORS') || message.includes('Failed to fetch')
+          ? 'Cannot reach server. Check backend URL and CORS settings.'
+          : message
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    const user = users.find(
-      u => u.username.toLowerCase() === username.toLowerCase() && u.password === password
-    );
-    if (user) {
-      setAuthToken(null);
-      onLogin(user);
-    } else {
-      setError('Invalid username or password');
-    }
-    setIsLoading(false);
   };
 
   return (
