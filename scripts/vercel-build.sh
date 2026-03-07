@@ -10,5 +10,6 @@ if [ ! -d "$APP_DIR" ]; then
   exit 1
 fi
 cd "$APP_DIR"
-npm ci
+# Use npm ci when lock file exists (reproducible); else npm install (submodules may not have package-lock.json)
+if [ -f package-lock.json ]; then npm ci; else npm install; fi
 npm run build
