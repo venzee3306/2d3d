@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import User, UserBalance, DepositRequest, WithdrawalRequest, UnitDepositRequest, Transaction
+from app.models import User, UserBalance, DepositRequest, WithdrawalRequest, UnitDepositRequest, PlayerWithdrawalRequest, Transaction
 from app.models.requests import DepositRequestStatus, WithdrawalRequestStatus
 from app.models.transaction import TransactionType
 from app.models.user import UserRole
@@ -381,6 +381,86 @@ async def reject_unit_deposit(request_id: str, db: Annotated[AsyncSession, Depen
     req = result.scalar_one_or_none()
     if not req or req.status != "pending":
         raise HTTPException(status_code=404, detail="Request not found or not pending")
+    req.status = "rejected"
+    req.processed_at = datetime.utcnow()
+    req.processed_by = current.id
+    return {"ok": True}
+
+
+# ----- Player withdrawal requests (cash out) -----
+@router.get("/player-withdrawals")
+async def list_player_withdrawal_requests(
+    agent_id: str | None = None,
+    status: str | None = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    current: Annotated[User, Depends(get_current_user)] = None,
+):
+    """List player withdrawal (cash out) requests for the current user (agent sees their requests)."""
+    q = select(PlayerWithdrawalRequest)
+    if current.role == UserRole.agent:
+        q = q.where(PlayerWithdrawalRequest.agent_id == current.id)
+    elif agent_id:
+        q = q.where(PlayerWithdrawalRequest.agent_id == agent_id)
+    if status:
+        q = q.where(PlayerWithdrawalRequest.status == status)
+    q = q.order_by(PlayerWithdrawalRequest.requested_at.desc())
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "player_id": r.player_id,
+            "player_name": r.player_name,
+            "agent_id": r.agent_id,
+            "amount": float(r.amount),
+            "payment_method": r.payment_method,
+            "account_number": r.account_number,
+            "account_name": r.account_name,
+            "status": r.status,
+            "requested_at": r.requested_at.isoformat() if hasattr(r.requested_at, "isoformat") else str(r.requested_at),
+            "processed_at": r.processed_at.isoformat() if r.processed_at else None,
+            "note": r.note,
+            "rejection_reason": r.rejection_reason,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/player-withdrawals/{request_id}/approve")
+async def approve_player_withdrawal(
+    request_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    """Agent approves a player cash-out: debit player in User Backend."""
+    result = await db.execute(select(PlayerWithdrawalRequest).where(PlayerWithdrawalRequest.id == request_id))
+    req = result.scalar_one_or_none()
+    if not req or req.status != "pending":
+        raise HTTPException(status_code=404, detail="Request not found or not pending")
+    if current.id != req.agent_id:
+        raise HTTPException(status_code=403, detail="Only the agent for this request can approve")
+    from app.services.user_backend_client import debit_player_withdrawal
+    ok = await debit_player_withdrawal(req.player_id, float(req.amount), request_id=req.id)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Could not debit player in User Backend")
+    req.status = "approved"
+    req.processed_at = datetime.utcnow()
+    req.processed_by = current.id
+    return {"ok": True}
+
+
+@router.post("/player-withdrawals/{request_id}/reject")
+async def reject_player_withdrawal(
+    request_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    result = await db.execute(select(PlayerWithdrawalRequest).where(PlayerWithdrawalRequest.id == request_id))
+    req = result.scalar_one_or_none()
+    if not req or req.status != "pending":
+        raise HTTPException(status_code=404, detail="Request not found or not pending")
+    if current.id != req.agent_id:
+        raise HTTPException(status_code=403, detail="Only the agent for this request can reject")
     req.status = "rejected"
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id

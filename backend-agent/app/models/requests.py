@@ -61,6 +61,26 @@ class WithdrawalRequest(Base):
     rejection_reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
+class PlayerWithdrawalRequest(Base):
+    """Player cash-out request (player withdraws from agent)."""
+    __tablename__ = "player_withdrawal_requests"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    player_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    player_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(64), ForeignKey("users.id"), nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(64), nullable=False)
+    account_number: Mapped[str] = mapped_column(String(64), nullable=False)
+    account_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    processed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
 class UnitDepositRequest(Base):
     """Agent/Master requests units from upstream."""
     __tablename__ = "unit_deposit_requests"

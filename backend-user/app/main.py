@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import health, auth, players, sessions, bets, transactions, deposit_requests, internal_sync, public_api
+from app.routers import health, auth, players, sessions, bets, transactions, deposit_requests, withdrawal_requests, bank_accounts, results, payout_rates, internal_sync, public_api
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -46,6 +46,10 @@ app.include_router(sessions.router)
 app.include_router(bets.router)
 app.include_router(transactions.router)
 app.include_router(deposit_requests.router)
+app.include_router(withdrawal_requests.router)
+app.include_router(bank_accounts.router)
+app.include_router(results.router)
+app.include_router(payout_rates.router)
 app.include_router(internal_sync.router)
 app.include_router(public_api.router)
 

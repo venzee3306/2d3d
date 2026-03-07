@@ -10,12 +10,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_internal_api_key
 from app.database import get_db
-from app.models import User, UserBalance, PlayerSnapshot, BlockedNumber, DepositRequest
+from app.models import User, UserBalance, PlayerSnapshot, BlockedNumber, DepositRequest, PlayerWithdrawalRequest, BankAccount
 from app.models.requests import DepositRequestStatus
 from app.models.user import UserRole
 from app.schemas.sync import PlayerSyncPayload, AgentLimitResponse
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+class InternalPlayerWithdrawalCreate(BaseModel):
+    """Create a player withdrawal request (cash out). Called by User Backend."""
+    player_id: str
+    player_name: str
+    agent_id: str
+    amount: float
+    payment_method: str
+    account_number: str
+    account_name: str
+    note: str | None = None
 
 
 class InternalDepositRequestCreate(BaseModel):
@@ -170,6 +182,99 @@ async def internal_create_deposit_request(
     db.add(req)
     await db.flush()
     return _deposit_request_to_dict(req)
+
+
+@router.post("/player-withdrawals")
+async def internal_create_player_withdrawal(
+    data: InternalPlayerWithdrawalCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[None, Depends(require_internal_api_key)],
+):
+    """Create a player cash-out request. Called by User Backend."""
+    req = PlayerWithdrawalRequest(
+        id=str(uuid.uuid4()),
+        player_id=data.player_id,
+        player_name=data.player_name,
+        agent_id=data.agent_id,
+        amount=data.amount,
+        payment_method=data.payment_method,
+        account_number=data.account_number,
+        account_name=data.account_name,
+        note=data.note,
+        status="pending",
+    )
+    db.add(req)
+    await db.flush()
+    return {
+        "id": req.id,
+        "player_id": req.player_id,
+        "player_name": req.player_name,
+        "agent_id": req.agent_id,
+        "amount": float(req.amount),
+        "payment_method": req.payment_method,
+        "account_number": req.account_number,
+        "account_name": req.account_name,
+        "status": req.status,
+        "requested_at": req.requested_at.isoformat() if isinstance(req.requested_at, datetime) else str(req.requested_at),
+        "note": req.note,
+    }
+
+
+@router.get("/player-withdrawals")
+async def internal_list_player_withdrawals(
+    player_id: str | None = Query(None, description="Filter by player_id"),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    _: Annotated[None, Depends(require_internal_api_key)] = None,
+) -> list[dict]:
+    """List player withdrawal requests, optionally by player_id."""
+    q = select(PlayerWithdrawalRequest).order_by(PlayerWithdrawalRequest.requested_at.desc())
+    if player_id:
+        q = q.where(PlayerWithdrawalRequest.player_id == player_id)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "player_id": r.player_id,
+            "player_name": r.player_name,
+            "agent_id": r.agent_id,
+            "amount": float(r.amount),
+            "payment_method": r.payment_method,
+            "account_number": r.account_number,
+            "account_name": r.account_name,
+            "status": r.status,
+            "requested_at": r.requested_at.isoformat() if isinstance(r.requested_at, datetime) else str(r.requested_at),
+            "processed_at": r.processed_at.isoformat() if r.processed_at else None,
+            "note": r.note,
+            "rejection_reason": r.rejection_reason,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/agents/{agent_id}/bank-accounts")
+async def internal_list_agent_bank_accounts(
+    agent_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[None, Depends(require_internal_api_key)],
+) -> list[dict]:
+    """List bank accounts for an agent (for User Backend to show player where to send deposit)."""
+    result = await db.execute(
+        select(BankAccount).where(BankAccount.user_id == agent_id).order_by(BankAccount.created_at)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "payment_method": r.payment_method,
+            "account_name": r.account_name,
+            "account_number": r.account_number,
+            "bank_name": r.bank_name,
+            "qr_code_url": r.qr_code_url,
+            "is_primary": r.is_primary,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/deposit-requests")

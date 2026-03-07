@@ -42,8 +42,10 @@ async def init_db():
         DepositRequest,
         WithdrawalRequest,
         UnitDepositRequest,
+        PlayerWithdrawalRequest,
         PlayerSnapshot,
         BlockedNumber,
+        BankAccount,
         RefreshToken,
     )
     async with engine.begin() as conn:

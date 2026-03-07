@@ -35,6 +35,30 @@ async def me(current: Annotated[Player, Depends(get_current_player)]):
     return _player_to_response(current)
 
 
+@router.get("/me/agent-payment-profile")
+async def get_agent_payment_profile(
+    current: Annotated[Player, Depends(get_current_player)],
+):
+    """Get the current player's agent's bank accounts for deposit flow (where to send money)."""
+    from app.services.agent_client import get_agent_bank_accounts
+    accounts = await get_agent_bank_accounts(current.agent_id)
+    return {
+        "agent_id": current.agent_id,
+        "payment_methods": [
+            {
+                "id": a["id"],
+                "method": a["payment_method"],
+                "account_name": a["account_name"],
+                "account_number": a["account_number"],
+                "bank_name": a.get("bank_name"),
+                "qr_code_url": a.get("qr_code_url"),
+                "is_active": True,
+            }
+            for a in accounts
+        ],
+    }
+
+
 @router.patch("/me", response_model=PlayerResponse)
 async def update_me(
     data: PlayerMeUpdate,

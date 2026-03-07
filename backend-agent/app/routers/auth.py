@@ -31,7 +31,9 @@ ACCESS_TOKEN_MAX_AGE = settings.access_token_expire_minutes * 60
 REFRESH_TOKEN_MAX_AGE = settings.refresh_token_expire_days * 24 * 3600
 
 
-def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+def _set_auth_cookies(
+    response: Response, access_token: str, refresh_token: str, user_agent: str | None = None
+) -> None:
     kwargs = {
         "path": settings.cookie_path,
         "httponly": True,
@@ -50,6 +52,9 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         max_age=REFRESH_TOKEN_MAX_AGE,
         **kwargs,
     )
+    if getattr(settings, "auth_bind_user_agent", False) and user_agent:
+        bind = compute_token_bind(access_token, user_agent)
+        response.set_cookie(settings.cookie_bind_name, bind, max_age=ACCESS_TOKEN_MAX_AGE, **kwargs)
 
 
 def _set_access_cookie(

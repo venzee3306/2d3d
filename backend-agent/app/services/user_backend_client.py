@@ -24,3 +24,26 @@ async def credit_player_deposit(player_id: str, amount: float, request_id: str |
             return r.status_code == 200
         except Exception:
             return False
+
+
+async def debit_player_withdrawal(player_id: str, amount: float, request_id: str | None = None) -> bool:
+    """
+    Debit a player's balance in the User Backend after agent approved a withdrawal (cash out).
+    Returns True on success, False on error.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.post(
+                f"{settings.user_backend_url}/internal/debit-withdrawal",
+                headers={"X-Internal-API-Key": settings.internal_api_key},
+                json={
+                    "player_id": player_id,
+                    "amount": amount,
+                    "request_id": request_id,
+                    "description": "Cash out approved",
+                },
+                timeout=10.0,
+            )
+            return r.status_code == 200
+        except Exception:
+            return False

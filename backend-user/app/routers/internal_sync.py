@@ -23,6 +23,14 @@ class CreditDepositBody(BaseModel):
     description: str | None = None
 
 
+class DebitWithdrawalBody(BaseModel):
+    """Agent backend calls this after approving a player withdrawal (cash out)."""
+    player_id: str
+    amount: float
+    request_id: str | None = None
+    description: str | None = None
+
+
 def _player_payload(p: Player) -> dict:
     return {
         "player_id": p.id,
@@ -141,6 +149,43 @@ async def credit_deposit(
         player_id=p.id,
         type="deposit",
         amount=data.amount,
+        balance_after=float(p.balance),
+        description=desc,
+        related_bet_id=None,
+        timestamp=now,
+    )
+    db.add(tx)
+    await db.flush()
+    return {"ok": True, "player_id": p.id, "balance_after": float(p.balance)}
+
+
+@router.post("/debit-withdrawal")
+async def debit_withdrawal(
+    data: DebitWithdrawalBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[None, Depends(require_internal_api_key)],
+):
+    """
+    Debit a player's balance after agent approved a withdrawal (cash out).
+    Called by Agent Backend when agent approves a player withdrawal.
+    """
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    result = await db.execute(select(Player).where(Player.id == data.player_id).with_for_update())
+    p = result.scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Player not found")
+    before = float(p.balance)
+    if before < data.amount:
+        raise HTTPException(status_code=400, detail="Insufficient player balance")
+    p.balance = before - data.amount
+    now = datetime.utcnow()
+    desc = data.description or "Cash out approved"
+    tx = Transaction(
+        id=str(uuid.uuid4()),
+        player_id=p.id,
+        type="cashout",
+        amount=-data.amount,
         balance_after=float(p.balance),
         description=desc,
         related_bet_id=None,
