@@ -3,6 +3,10 @@
 # Fixes: "destination path already exists" and "could not read Username" for private submodules.
 set -e
 
+# Run from repo root (Vercel may invoke from Root Directory subfolder)
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
 # Use token from env (Vercel: add GITHUB_TOKEN or GITHUB_REPO_CLONE_TOKEN with repo read access)
 TOKEN="${GITHUB_TOKEN:-$GITHUB_REPO_CLONE_TOKEN}"
 if [ -n "$TOKEN" ]; then

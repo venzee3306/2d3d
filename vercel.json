@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "bash scripts/vercel-install.sh"
+  "installCommand": "bash \"$(git rev-parse --show-toplevel)/scripts/vercel-install.sh\""
 }
