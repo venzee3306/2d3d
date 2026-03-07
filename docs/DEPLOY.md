@@ -2,6 +2,8 @@
 
 Deploy both backends to **Render** and both frontends to **Vercel**. Use **Neon** (or Render Postgres) for the two databases.
 
+**Current MCP status:** Neon projects are created and ready. See [DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md) for Neon project IDs, Render (402 / payment) and Vercel (CLI login) next steps.
+
 ---
 
 ## Prerequisites
@@ -28,9 +30,21 @@ If using **Neon**: create two projects or two databases, copy the connection str
 1. Open [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**.
 2. Connect **GitHub** and select the repo **venzee3306/2d3d**.
 3. Render reads `render.yaml` and creates:
+
+**Important:** Both backends are **FastAPI** (ASGI). Use **uvicorn**, not gunicorn/WSGI. If you create services manually or Render shows a default, set:
+
+| Field | Value |
+|-------|--------|
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+
+(Render may suggest `gunicorn your_application.wsgi` — ignore that; these apps use uvicorn.)
+
+4. After Blueprint creates the services:
    - **2d3d-backend-agent** (Python, `backend-agent/`)
    - **2d3d-backend-user** (Python, `backend-user/`)
-4. For each service, set **Environment** variables:
+
+5. For each service, set **Environment** variables:
 
    **2d3d-backend-agent**
 
@@ -53,14 +67,14 @@ If using **Neon**: create two projects or two databases, copy the connection str
    | `DEFAULT_AGENT_ID` | e.g. `admin1` (first admin user id in Agent DB after seed) |
    | `CORS_ORIGINS` | Your Vercel frontend URLs, comma-separated |
 
-5. Save and let Render build and deploy. Note the service URLs (e.g. `https://2d3d-backend-agent.onrender.com`, `https://2d3d-backend-user.onrender.com`).
-6. Set **USER_BACKEND_URL** on the Agent service to the User backend URL if not already set.
+6. Save and let Render build and deploy. Note the service URLs (e.g. `https://2d3d-backend-agent.onrender.com`, `https://2d3d-backend-user.onrender.com`).
+7. Set **USER_BACKEND_URL** on the Agent service to the User backend URL if not already set.
 
 ---
 
 ## 3. Deploy frontends on Vercel
 
-You need **two Vercel projects** (one per frontend), both from the same repo with different **Root Directory**.
+You have two projects (**2d3d**, **2d3d-eonb**) from the monorepo. For correct builds with submodules, follow **[docs/VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)** to set each project’s Build Command and Output Directory. Summary: build from repo root using `scripts/vercel-build.sh <Useronboarding|Agentdashboard2d3d>` and set Output to the app’s `dist` folder.
 
 ### Option A: Vercel Dashboard (recommended)
 

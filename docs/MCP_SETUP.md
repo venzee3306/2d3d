@@ -13,7 +13,7 @@ Edit `.cursor/mcp.json` and replace the placeholders with your real credentials 
 | Server  | Placeholder             | Where to get it |
 |---------|-------------------------|------------------|
 | **Render** | `YOUR_RENDER_API_KEY` | [Render Dashboard → Account Settings → API Keys](https://dashboard.render.com/settings#api-keys). Create a key and paste it. |
-| **Vercel** | *(none)*               | No key in config. On first use, Cursor will open a browser for OAuth login. |
+| **Vercel** | *(none)*               | No key in config. Use **URL only** (no `headers`). In Cursor, when Vercel MCP shows **"Needs login"**, click it to open the browser and complete OAuth. |
 | **Neon** | `YOUR_NEON_API_KEY`    | [Neon Console → Settings → API Keys](https://console.neon.tech/app/settings/api-keys). Create a key and paste it. |
 | **GitHub** | `YOUR_GITHUB_PAT`    | [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens). Create a token with scopes you need (e.g. `repo`, `read:org`). |
 

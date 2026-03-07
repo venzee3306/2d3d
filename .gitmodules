@@ -1,6 +1,6 @@
 [submodule "Agentdashboard2d3d"]
 	path = Agentdashboard2d3d
-	url = git@github.com:venzee3306/Agentdashboard2d3d.git
+	url = https://github.com/venzee3306/Agentdashboard2d3d.git
 [submodule "Useronboarding"]
 	path = Useronboarding
-	url = git@github.com:venzee3306/Useronboarding.git
+	url = https://github.com/venzee3306/Useronboarding.git
