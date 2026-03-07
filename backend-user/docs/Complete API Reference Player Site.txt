@@ -1,0 +1,745 @@
+Complete API Reference — Myanmar Lottery Player Platform
+Table of Contents
+Global Context API (useApp)
+Data Types & Interfaces
+Pattern Generator APIs
+Utility Functions
+Component Props Interfaces
+Translation System
+Mock Data Constants
+Notification System
+1. Global Context API
+File: /src/app/context/NewAppContext.tsx Hook: useApp() Provider: <AppProvider> wraps the entire app.
+
+Must be called inside <AppProvider>. Throws if used outside.
+
+1.1 Authentication
+Function / Property	Signature	Description
+player	Player | null	Current authenticated player object, or null
+isAuthenticated	boolean	Whether a player is logged in
+login	(username: string, password: string) => boolean	Authenticates against mockPlayer. Sets player, balance, isAuthenticated. Returns true on success, false on failure. Valid credentials: aungaung / player123
+logout	() => void	Clears player, isAuthenticated, balance, cart, bets, transactions. Resets all state to defaults
+1.2 Language / i18n
+Function / Property	Signature	Description
+language	Language ('en' | 'mm')	Current active language
+setLanguage	(lang: Language) => void	Switches language. Affects all t() calls
+t	(key: string) => string	Translation lookup. Supports dot-notation keys (e.g. t('betNumber')). Returns the key itself if not found
+1.3 Balance
+Function / Property	Signature	Description
+balance	number	Current player balance in MMK
+updateBalance	(amount: number) => void	Adds amount to balance (negative to subtract). Also updates player.balance
+1.4 Cart
+Function / Property	Signature	Description
+cart	CartItem[]	Current items in the betting cart
+addToCart	(items: CartItem | CartItem[]) => void	Appends one or multiple items to cart
+removeFromCart	(id: string) => void	Removes a single item by its id
+updateCartItem	(id: string, amount: number) => void	Updates the amount of a specific cart item
+clearCart	() => void	Empties the entire cart
+cartTotal	number	Computed sum of all item.amount in cart
+1.5 Bets
+Function / Property	Signature	Description
+bets	Bet[]	All placed bets (newest first)
+activeBets	Bet[]	Computed: bets with status === 'Pending'
+pastBets	Bet[]	Computed: bets with status !== 'Pending'
+placeBets	(sessionId: string) => boolean	Converts entire cart into Bet[], deducts cartTotal from balance, creates a 'bet' transaction, clears cart. Returns false if cart is empty or balance insufficient
+placeBetsDirectly	(items: CartItem[], sessionId: string) => boolean	Same as placeBets but takes items directly (does NOT use or clear cart). Used by PlayerBettingInterface. Returns false if items empty or total > balance
+getBetsBySession	(sessionId: string) => Bet[]	Filters all bets matching a specific sessionId
+placeBets internal flow:
+
+Validate cart not empty, cartTotal <= balance
+Map each CartItem → Bet with auto-generated id, current round (Morning if before 12, else Evening), status: 'Pending'
+Prepend new bets to bets state
+Call updateBalance(-cartTotal)
+Call addTransaction(...) with type 'bet'
+Call clearCart()
+placeBetsDirectly internal flow: Same as above but uses provided items array instead of cart. Does NOT clear cart.
+
+1.6 Transactions
+Function / Property	Signature	Description
+transactions	Transaction[]	All transaction records (newest first)
+addTransaction	(transaction: Omit<Transaction, 'id'> & { id?: string }) => void	Creates a new transaction. Auto-generates id if not provided. Prepends to transactions
+updateTransaction	(id: string, updates: Partial<Transaction>) => void	Merges updates into the transaction matching id. Used to change status: 'pending' → 'approved'
+1.7 Results
+Function / Property	Signature	Description
+dailyResults	DailyResult[]	30 days of mock daily results (2D morning+evening + 3D every 5 days)
+getTodayResults	() => DailyResult[]	Filters dailyResults by today's date (YYYY-MM-DD)
+1.8 Payout Rates
+Function / Property	Signature	Description
+payoutRates	PayoutRate[]	Array of payout rate configs
+getPayoutRate	(gameType: '2D' | '3D') => PayoutRate | undefined	Returns the payout rate for the given game type. 2D = 85x, 3D = 500x
+1.9 Blocked Numbers
+Function / Property	Signature	Description
+blockedNumbers	BlockedNumber[]	List of blocked numbers (empty by default)
+checkBlockedNumber	(number: string, gameType: '2D' | '3D') => BlockedNumber | null	Returns the BlockedNumber if blocked, else null
+hasBlockedNumbersInCart	() => boolean	Returns true if any cart item's number is blocked
+removeBlockedFromCart	() => void	Removes all cart items whose numbers are blocked
+1.10 Favorites
+Function / Property	Signature	Description
+favoriteNumbers	{ '2D': string[], '3D': string[] }	Player's saved favorite numbers
+addToFavorites	(number: string, gameType: '2D' | '3D') => void	Adds a number to favorites (deduplicates via Set)
+removeFromFavorites	(number: string, gameType: '2D' | '3D') => void	Removes a number from favorites
+2. Data Types & Interfaces
+File: /src/app/data/newMockData.ts
+
+2.1 Player
+interface Player {
+  id: string;              // e.g. 'player-001'
+  name: string;            // English name
+  nameMM: string;          // Myanmar Unicode name
+  username: string;        // Login username
+  password: string;        // Login password (mock)
+  phoneNumber: string;     // e.g. '09123456789'
+  balance: number;         // Current balance in MMK
+  agentId: string;         // Linked agent ID
+  status: 'active' | 'suspended';
+  createdAt: string;       // ISO timestamp
+}
+2.2 Bet
+interface Bet {
+  id: string;                          // Auto-generated: 'bet-{timestamp}-{random}'
+  playerId: string;
+  playerName: string;
+  gameType: '2D' | '3D';
+  betNumber: string;                   // The number bet on (e.g. '47', '123')
+  amount: number;                      // Bet amount in MMK
+  round: 'Morning' | 'Evening';       // Determined by time of placement
+  placedAt: string;                    // ISO timestamp
+  status: 'Pending' | 'Won' | 'Lost';
+  winAmount?: number;                  // Only if Won
+  sessionId?: string;                  // Groups bets from same submission
+  pattern?: {                          // If placed via pattern
+    type: PatternType;
+    input: string;
+    label: string;
+    labelMM: string;
+  };
+}
+2.3 CartItem
+interface CartItem {
+  id: string;                    // Unique per item
+  gameMode: '2D' | '3D';
+  number: string;                // The number to bet on
+  amount: number;                // Bet amount
+  pattern?: {                    // Optional pattern metadata
+    type: PatternType;
+    input: string;
+    label: string;
+    labelMM: string;
+  };
+}
+2.4 SavedRecord & SavedRecordBetItem
+interface SavedRecordBetItem {
+  number: string;
+  amount: number;
+  gameMode: '2D' | '3D';
+  pattern?: {
+    type: string;
+    input: string;
+    label: string;
+  };
+}
+
+interface SavedRecord {
+  id: string;                    // Unique record ID
+  session: string;               // e.g. 'Mar 1-morning'
+  timestamp: string;             // e.g. '10:23:45 AM'
+  playerName: string;
+  bets: SavedRecordBetItem[];    // All bets in this submission
+  total: number;                 // Sum of all bet amounts
+}
+2.5 Transaction
+interface Transaction {
+  id: string;                    // Auto-generated or manual
+  playerId: string;
+  type: 'deposit' | 'bet' | 'win' | 'loss' | 'cashout';
+  amount: number;                // Positive for deposit/win, negative for bet/cashout
+  balance: number;               // Balance snapshot at time of transaction
+  description: string;           // English description
+  descriptionMM: string;         // Myanmar description
+  timestamp: string;             // ISO timestamp
+  relatedBetId?: string;         // Links to a bet session
+  status?: 'pending' | 'approved' | 'rejected';
+  paymentMethod?: string;        // e.g. 'kpay', 'wavepay'
+}
+2.6 DailyResult
+interface DailyResult {
+  id: string;                    // e.g. '2d-m-0', '3d-5'
+  date: string;                  // 'YYYY-MM-DD'
+  gameType: '2D' | '3D';
+  round: 'Morning' | 'Evening';
+  winningNumber: string;         // e.g. '47', '472'
+  announcedAt: string;           // ISO timestamp
+}
+2.7 PayoutRate
+interface PayoutRate {
+  gameType: '2D' | '3D';
+  multiplier: number;            // 2D=85, 3D=500
+  description: string;           // English
+  descriptionMM: string;         // Myanmar
+}
+2.8 BlockedNumber
+interface BlockedNumber {
+  number: string;
+  gameType: '2D' | '3D';
+  reason: string;
+  reasonMM: string;
+}
+2.9 BankAccount
+interface BankAccount {
+  id: string;
+  playerId: string;
+  paymentMethod: 'kpay' | 'wavepay' | 'cbpay' | 'ayapay' | 'onepay' | 'bank';
+  accountName: string;
+  accountNumber: string;
+  bankName?: string;             // Only for 'bank' type
+  isDefault: boolean;
+  createdAt: string;             // ISO timestamp
+}
+2.10 AgentPaymentMethod
+interface AgentPaymentMethod {
+  id: string;                    // e.g. 'apm-001'
+  method: 'kpay' | 'wavepay' | 'cbpay' | 'ayapay' | 'onepay' | 'bank';
+  accountName: string;
+  accountNumber: string;
+  bankName?: string;
+  qrCodeData: string;           // Data encoded in QR
+  isActive: boolean;
+  updatedAt: string;             // ISO timestamp
+}
+2.11 AgentPaymentProfile
+interface AgentPaymentProfile {
+  agentId: string;
+  agentName: string;
+  agentNameMM: string;
+  paymentMethods: AgentPaymentMethod[];
+  lastSynced: string;            // ISO timestamp
+}
+2.12 UnitDepositRequest
+interface UnitDepositRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterRole: 'player';
+  approverId: string;
+  approverName: string;
+  amount: number;
+  paymentMethod: string;
+  transactionId: string;
+  paymentScreenshot?: string;    // Base64 data URL
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;           // ISO timestamp
+  processedAt?: string;          // ISO timestamp (set on approval)
+  note?: string;
+  rejectionReason?: string;
+  type?: 'deposit' | 'cashout';
+  accountInfo?: string;          // For cashout: destination account
+}
+3. Pattern Generator APIs
+3.1 Quick Pattern System (Primary)
+File: /src/app/utils/quickPatterns.ts
+
+Master Generator:
+
+generateQuickPattern(
+  type: QuickPatternType,
+  input?: string,        // Default: ''
+  input2?: string,       // Default: '' (unused in current patterns)
+  is3D?: boolean         // Default: false — switches 2D/3D variants
+): string[]
+Routes to the appropriate generator based on type. Returns an array of generated number strings.
+
+QuickPatternType Union (31 types):
+
+type QuickPatternType =
+  // 2D patterns (25)
+  | 'group' | 'top' | 'break' | 'back' | 'round'
+  | 'reverse' | 'khwe' | 'khwe-puu'
+  | 'a-puu' | 'sone-puu' | 'ma-puu'
+  | 'pawa' | 'natkha'
+  | 'nyi-ko' | 'ko-nyi' | 'nyi-ko-r'
+  | 'sone-ma' | 'ma-sone' | 'sone-ma-r'
+  | 'sone-sone' | 'ma-ma'
+  | 'sone-kat' | 'sone-kat-r' | 'ma-kat' | 'ma-kat-r'
+  // 3D patterns (6 — some shared IDs with 2D variants)
+  | 'hundred' | 'series';
+Individual 2D Generators:
+
+#	Function	Input	Output	Count	Myanmar Name
+1	generateGroup(input)	Dot-separated 2-digit numbers ("12.34.56")	Each number as-is	Variable	အုပ်စု
+2	generateTop(digit)	Single digit "0"-"9"	All numbers starting with digit	10	ထိပ်
+3	generateBreak(breakDigit)	Single digit "0"-"9"	Numbers where digit sum ends in input	~10	ဘြိတ်
+4	generateBack(tailDigit)	Single digit "0"-"9"	All numbers ending with digit	10	နောက်
+5	generateRound(roundDigit)	Single digit "0"-"9"	All numbers containing digit	19	ပါတ်
+6	generateReverse(betNumber)	2-digit string	Original + reversed (deduplicated)	1-2	R
+7	generateKhwe(digits)	Exactly 3 digits ("123")	2-digit permutations WITHOUT doubles	Up to 6	ခွေ
+8	generateKhwePuu(digits)	Exactly 3 digits ("123")	2-digit permutations WITH doubles	Up to 9	ခွေပူး
+9	generateAPuu()	None	All 10 doubles 00..99	10	အပူး
+10	generateSonePuu()	None	Even doubles 00,22,44,66,88	5	စုံပူး
+11	generateMaPuu()	None	Odd doubles 11,33,55,77,99	5	မပူး
+12	generatePawa()	None	Fixed power pairs (sum=5)	10	ပါဝါ
+13	generateNatkha()	None	Fixed astrology pairs	10	နက္ခ
+14	generateNyiKo()	None	Ascending sequential 01,12,...,90	10	ညီကို
+15	generateKoNyi()	None	Descending sequential 10,21,...,09	10	ကိုညီ
+16	generateNyiKoR()	None	Nyi-Ko + Ko-Nyi combined	20	ညီကိုR
+17	generateSoneMa()	None	Even-first × Odd-second	25	စုံမ
+18	generateMaSone()	None	Odd-first × Even-second	25	မစုံ
+19	generateSoneMaR()	None	SoneMa + MaSone combined	50	စုံမR
+20	generateSoneSone()	None	Even × Even	25	စုံစုံ
+21	generateMaMa()	None	Odd × Odd	25	မမ
+22	generateSoneKat(digit)	Single digit "0"-"9"	Digit paired with even digits	5	စုံကပ်
+23	generateSoneKatR(digit)	Single digit "0"-"9"	SoneKat + reverses	5-10	စုံကပ်R
+24	generateMaKat(digit)	Single digit "0"-"9"	Digit paired with odd digits	5	မကပ်
+25	generateMaKatR(digit)	Single digit "0"-"9"	MaKat + reverses	5-10	မကပ်R
+Individual 3D Generators:
+
+#	Function	Input	Output	Count	Myanmar Name
+1	generateAPuu3D()	None	All triples 000..999	10	အပူး (3D)
+2	generateHundred()	None	100,200,...,900	9	ရာပြည့်
+3	generateSeries()	None	Consecutive digit sequences 012..789	8	စီးရီး
+4	generateNyiKo3D()	None	3-digit ascending consecutive (wrapping)	10	ညီကို (3D)
+5	generateKoNyi3D()	None	3-digit descending consecutive (wrapping)	10	ကိုညီ (3D)
+6	generateReverse3D(betNumber)	3-digit string	Original + reversed	1-2	R (3D)
+7	generateSeriesNumbers(input)	Pattern with ? wildcard (e.g. "?45")	Replace ? with 0-9	10	စီးရီး (wildcard)
+8	generate3DPermutations(digits)	3-digit string	All unique permutations	Up to 6	R (permutations)
+3.2 Legacy Pattern System
+File: /src/app/utils/patterns.ts
+
+PatternType Union (12 types):
+
+type PatternType =
+  | 'manual' | 'power-2' | 'power-3'
+  | 'break-2' | 'break-3' | 'round'
+  | 'khwe' | 'apone' | 'apout'
+  | 'brothers' | 'twin' | 'natkhat-body';
+Master Generator:
+
+generatePattern(
+  type: PatternType,
+  input: string,
+  is3D?: boolean,          // Default: false
+  extraInput?: string      // Only for 'natkhat-body'
+): string[]
+Individual Legacy Generators:
+
+Function	Signature	Description
+generatePower2(input)	(input: string) => string[]	All 2-digit numbers containing any of the input digits
+generatePower3(input)	(input: string) => string[]	All 3-digit numbers containing any of the input digits
+generateBreak2(input)	(input: string) => string[]	All 2-digit permutations from input digits
+generateBreak3(input)	(input: string) => string[]	All 3-digit permutations from input digits
+generateRound(input)	(input: string) => string[]	Dispatches to Break2 (2 digits) or Break3 (3 digits)
+generateKhwe(input)	(input: string) => string[]	Reverse pair of a 2-digit number
+generateApone(input, is3D?)	(input: string, is3D?: boolean) => string[]	All numbers starting with digit (10 for 2D, 100 for 3D)
+generateApout(input, is3D?)	(input: string, is3D?: boolean) => string[]	All numbers ending with digit
+generateBrothers(input, is3D?)	(input: string, is3D?: boolean) => string[]	11 sequential numbers centered on input
+generateTwin(is3D?)	(is3D?: boolean) => string[]	All doubles (10 for 2D, 10 for 3D)
+generateNatkhatBody(head, tail)	(head: string, tail: string) => string[]	10 three-digit numbers with fixed head & tail
+getPatternLabel(type)	(type: PatternType) => { en: string; mm: string }	Returns bilingual label for a pattern type
+3.3 Pattern Definitions (UI Metadata)
+File: /src/app/data/patternDefinitions.ts
+
+QuickPatternDefinition Interface:
+
+interface QuickPatternDefinition {
+  id: QuickPatternType;           // Pattern identifier
+  labelMM: string;                // Myanmar button label
+  labelEN: string;                // English button label
+  color: string;                  // Tailwind gradient classes (e.g. 'from-blue-500 to-blue-600')
+  category: 'A' | 'B' | 'C';    // A=modal input, B=instant, C=context-dependent
+  requiresInput: boolean;         // Whether pattern needs user input
+  requiresTwoInputs?: boolean;    // Needs two separate inputs
+  requiresThreeDigits?: boolean;  // Input must be exactly 3 digits (khwe, khwe-puu)
+  requiresDotSeparated?: boolean; // Input is dot-separated (group)
+  isToggle?: boolean;             // Toggle on/off behavior
+  gameMode: '2D' | '3D' | 'both';
+  promptMM: string;               // Myanmar input prompt
+  promptEN: string;               // English input prompt
+  prompt2MM?: string;             // Second input prompt (Myanmar)
+  prompt2EN?: string;             // Second input prompt (English)
+}
+ALL_QUICK_PATTERNS — QuickPatternDefinition[] — Array of all 31 pattern definitions (25 2D + 6 3D) with their UI metadata, colors, categories, and prompts.
+
+PatternCategory — 'A' | 'B' | 'C'
+
+4. Utility Functions
+4.1 QR Code Generator
+File: /src/app/utils/qrGenerator.ts
+
+generateQRDataUrl(data: string, size?: number): string
+Param	Type	Default	Description
+data	string	Required	Data to encode (generates deterministic visual pattern)
+size	number	800	Pixel dimensions of output (square)
+Returns	string		PNG data URL (data:image/png;base64,...) or '' if canvas unavailable
+Uses seeded random from hashCode(data) to generate a deterministic QR-like grid with finder/alignment/timing patterns. Not a real QR code — visual mock only.
+
+Internal helpers (not exported):
+
+Function	Signature	Description
+hashCode(str)	(str: string) => number	Java-style hash code, returns absolute value
+seededRandom(seed)	(seed: number) => () => number	Returns a deterministic PRNG function (LCG algorithm)
+4.2 Mock Data Helpers
+File: /src/app/data/newMockData.ts
+
+isNumberBlocked(number: string, gameType: '2D' | '3D'): BlockedNumber | null
+Checks if a number is in the mockBlockedNumbers array.
+
+calculateWinAmount(amount: number, gameType: '2D' | '3D'): number
+Multiplies amount by the payout rate (2D=85x, 3D=500x). Returns 0 if no rate found.
+
+4.3 Payment Method Config
+File: /src/app/data/newMockData.ts
+
+const PAYMENT_METHOD_CONFIG: Record<string, {
+  label: string;      // English name
+  labelMM: string;    // Myanmar name
+  icon: string;       // Emoji icon
+  color: string;      // Hex color
+  bgColor: string;    // Tailwind bg class
+}>
+Keys: 'kpay', 'wavepay', 'cbpay', 'ayapay', 'onepay', 'bank'
+
+const BANK_NAMES: string[]
+// ['KBZ Bank', 'CB Bank', 'AYA Bank', 'UAB Bank', 'Yoma Bank',
+//  'MAB Bank', 'AGD Bank', 'MOB Bank', 'MEB Bank', 'SMBC Bank']
+5. Component Props Interfaces
+5.1 NewLoginScreen
+interface NewLoginScreenProps {
+  onLogin: (username: string, password: string) => boolean;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  setLanguage: (lang: 'en' | 'mm') => void;
+}
+5.2 NewDashboard
+interface NewDashboardProps {
+  onNavigate: (screen: string) => void;
+  onShowQuickBet?: () => void;
+  onShowNotifications?: () => void;
+  unreadNotifications?: number;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  player: any;                           // Player object
+  balance: number;
+  activeBets: Bet[];
+  getTodayResults: () => DailyResult[];
+  bets: Bet[];
+  addToCart?: (items: any[]) => void;
+  onBuyUnits?: () => void;              // Navigates to deposit-qr
+  onCashout?: () => void;               // Opens CashoutModal
+}
+5.3 NewBetScreen
+interface NewBetScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  cart: CartItem[];
+  addToCart: (items: CartItem | CartItem[]) => void;
+  removeFromCart: (id: string) => void;
+  clearCart: () => void;
+  cartTotal: number;
+  balance: number;
+  placeBets: (sessionId: string) => boolean;
+  checkBlockedNumber: (number: string, gameType: '2D' | '3D') => any;
+  hasBlockedNumbersInCart: () => boolean;
+  removeBlockedFromCart: () => void;
+  getPayoutRate: (gameType: '2D' | '3D') => any;
+  favoriteNumbers: { '2D': string[]; '3D': string[] };
+}
+5.4 PlayerBettingInterface
+interface PlayerBettingInterfaceProps {
+  onClose: () => void;                              // Closes the modal
+  onNavigate: (screen: string) => void;             // Screen navigation
+  language: 'en' | 'mm';
+  playerName: string;
+  playerNameMM?: string;
+  session: 'Morning' | 'Evening';                   // AM/PM session
+  onAddToCart: (items: CartItem[]) => void;          // Submit bets (calls placeBetsDirectly)
+  onSaveRecord: (record: SavedRecord) => void;       // Save betting receipt
+  balance: number;
+  t: (key: string) => string;
+}
+Internal types:
+
+interface BetItem {
+  number: string;
+  amount: number;
+  gameMode: '2D' | '3D';
+  pattern?: { type: string; input: string; label: string };
+}
+
+type ActiveFieldType =
+  | 'amount' | 'number'
+  | 'group' | 'head' | 'tail' | 'break' | 'round'
+  | 'khwe' | 'khwe-puu'
+  | 'sone-kat' | 'sone-kat-r' | 'ma-kat' | 'ma-kat-r';
+5.5 SessionSelectionModal
+interface SessionSelectionModalProps {
+  onSelectSession: (session: 'AM' | 'PM') => void;
+  onClose: () => void;
+  language: 'en' | 'mm';
+}
+5.6 NewHistoryScreen
+interface NewHistoryScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  bets: Bet[];
+  activeBets: Bet[];
+  pastBets: Bet[];
+  getBetsBySession: (sessionId: string) => Bet[];
+  savedRecords: SavedRecord[];
+  onDeleteRecord: (id: string) => void;
+}
+5.7 NewResultsScreen
+interface NewResultsScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  dailyResults: DailyResult[];
+  bets: Bet[];
+}
+5.8 NewTransactionsScreen
+interface NewTransactionsScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  transactions: Transaction[];
+  balance: number;
+  unitRequests: UnitDepositRequest[];
+  onBuyUnits: () => void;
+  onCashout: () => void;
+}
+5.9 NewProfileScreen
+interface NewProfileScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  setLanguage: (lang: 'en' | 'mm') => void;
+  player: any;
+  balance: number;
+  logout: () => void;
+}
+5.10 DepositQRScreen
+type ScreenPhase = 'select-bank' | 'details-form' | 'request-sent';
+
+interface DepositQRScreenProps {
+  onNavigate: (screen: string) => void;
+  language: 'en' | 'mm';
+  agentProfile: AgentPaymentProfile;
+  onSubmitDeposit: (data: {
+    amount: number;
+    paymentMethod: string;
+    transactionId: string;
+    receiptImage: string;
+  }) => void;
+}
+5.11 UnitRequestModal
+interface UnitRequestModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: {
+    amount: number;
+    paymentMethod: string;
+    transactionId: string;
+    paymentScreenshot: string;
+    note?: string;
+  }) => void;
+  language: 'en' | 'mm';
+}
+5.12 CashoutModal
+interface CashoutModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: {
+    amount: number;
+    paymentMethod: string;
+    accountInfo: string;
+    note?: string;
+  }) => void;
+  availableBalance: number;
+  language: 'en' | 'mm';
+}
+5.13 BankScreen
+interface BankScreenProps {
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  bankAccounts: BankAccount[];
+  onAddAccount: () => void;
+  onEditAccount: (account: BankAccount) => void;
+  onDeleteAccount: (id: string) => void;
+  onSetDefault: (id: string) => void;
+  onBuyUnits: () => void;
+  onCashout: () => void;
+  balance: number;
+}
+5.14 BankAccountModal
+type PaymentMethodKey = 'kpay' | 'wavepay' | 'cbpay' | 'ayapay' | 'onepay' | 'bank';
+
+interface BankAccountModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: {
+    paymentMethod: PaymentMethodKey;
+    accountName: string;
+    accountNumber: string;
+    bankName?: string;
+    isDefault: boolean;
+  }) => void;
+  language: 'en' | 'mm';
+  editAccount?: BankAccount | null;    // If provided, modal is in edit mode
+}
+5.15 NewBottomNav
+interface NewBottomNavProps {
+  currentScreen: string;
+  onNavigate: (screen: string) => void;
+  onShowQuickBet?: () => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+}
+Nav Items: dashboard → deposit-qr → place-bet (center FAB) → history → profile
+
+5.16 LeftSidebar
+interface LeftSidebarProps {
+  currentScreen: string;
+  onNavigate: (screen: string) => void;
+  t: (key: string) => string;
+  language: 'en' | 'mm';
+  player: any;
+  balance: number;
+  logout: () => void;
+}
+5.17 NotificationPanel
+interface NotificationPanelProps {
+  notifications: AppNotification[];
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+  onDelete: (id: string) => void;
+  onClearAll: () => void;
+  language: 'en' | 'mm';
+}
+5.18 NotificationBell
+NotificationBell: React.FC<{
+  count: number;
+  onClick: () => void;
+  className?: string;
+}>
+Renders a bell icon with a red badge showing unread count (caps at 9+).
+
+6. Translation System
+File: /src/app/data/newTranslations.ts
+
+type Language = 'en' | 'mm';
+
+const translations: {
+  en: Record<string, string>;
+  mm: Record<string, string>;
+}
+Available Translation Keys (flat, no nesting):
+
+Category	Keys
+Auth	login, logout, username, password, welcome
+Navigation	dashboard, placeBet, history, results, profile
+Game Types	2D, 3D, twoDigit, threeDigit
+Rounds	morning, evening
+Balance	balance, currentBalance, availableBalance, insufficientBalance
+Betting	betNumber, amount, total, betAmount, minBet, maxBet, enterNumber, enterAmount, selectPattern
+Patterns	manual, power2, power3, break2, break3, round, khwe, apone, apout, brothers, twin, natkhatBody
+Cart	cart, addToCart, removeFromCart, clearCart, cartEmpty, itemsInCart
+Actions	submit, confirm, cancel, save, delete, edit, view, close, back, next, submitBets, confirmBets
+Status	pending, won, lost, active, suspended
+Messages	betPlaced, betFailed, numberBlocked, invalidAmount, loginSuccess, loginFailed
+Results	winningNumber, todayResults, latestResults, checkResults, yourWin, yourLoss
+History	betHistory, transactionHistory, activeBets, pastBets, filterBy, dateRange, allBets
+Payout	payoutRate, potentialWin
+Transactions	deposit, withdrawal, bet, win, loss
+Favorites	favorites, addToFavorites, quickBet
+Settings	settings, language, changePassword, notifications
+Misc	from, to, date, time, description, session, numbersGenerated, preview, inputDigit, headDigit, tailDigit, blockedReason, removeBlocked, each
+7. Mock Data Constants
+File: /src/app/data/newMockData.ts
+
+Constant	Type	Description
+mockPlayer	Player	Default player: Aung Aung, balance 100,000 MMK, credentials aungaung/player123
+mockPayoutRates	PayoutRate[]	2D=85x, 3D=500x
+mockBlockedNumbers	BlockedNumber[]	Empty array
+mockBets	Bet[]	Empty array
+mockTransactions	Transaction[]	Empty array
+mockDailyResults	DailyResult[]	Auto-generated 30 days: 60 2D results (AM+PM) + ~6 3D results
+mockFavoriteNumbers	{ '2D': string[], '3D': string[] }	Both empty arrays
+MOCK_UNIT_REQUESTS	UnitDepositRequest[]	Empty array
+MOCK_BANK_ACCOUNTS	BankAccount[]	3 pre-loaded accounts (KBZ Pay, Wave Pay, KBZ Bank)
+MOCK_AGENT_PAYMENT_PROFILE	AgentPaymentProfile	Agent Kyaw with 6 active payment methods
+PAYMENT_METHOD_CONFIG	Record<string, {...}>	Labels, icons, colors for 6 payment methods
+BANK_NAMES	string[]	10 Myanmar bank names
+8. Notification System
+File: /src/app/components/NotificationPanel.tsx
+
+8.1 AppNotification Interface
+interface AppNotification {
+  id: string;
+  type: 'win' | 'result' | 'balance' | 'session' | 'system' | 'bet_confirmed' | 'unit_request';
+  title: string;              // English title
+  titleMM: string;            // Myanmar title
+  message: string;            // English message body
+  messageMM: string;          // Myanmar message body
+  timestamp: Date;
+  read: boolean;
+  status?: 'pending' | 'approved' | 'rejected';   // For unit_request type
+}
+8.2 Notification Management (in App.tsx)
+Handler	Signature	Description
+handleMarkRead	(id: string) => void	Sets read: true on a single notification
+handleMarkAllRead	() => void	Sets read: true on all notifications
+handleDeleteNotification	(id: string) => void	Removes a notification from the array
+handleClearAllNotifications	() => void	Empties the entire notifications array
+8.3 generateMockNotifications()
+generateMockNotifications(): AppNotification[]
+Exported from NotificationPanel.tsx. Returns an initial set of mock notifications for visual testing.
+
+8.4 Icon Resolution (internal)
+Notification Type	Icon	Color
+win	Trophy	text-emerald-500
+result	Clock	text-amber-500
+balance	Wallet	text-amber-600
+session	AlertTriangle	text-orange-500
+system	Info	text-gray-500
+bet_confirmed	Check	text-emerald-500
+unit_request (pending)	Loader2 (spinning)	text-amber-500
+unit_request (approved)	CheckCircle2	text-emerald-500
+unit_request (rejected)	X	text-red-500
+9. App-Level Orchestration API (App.tsx)
+These are the key callback wiring patterns in App.tsx that connect components:
+
+9.1 Request Flow Callbacks
+Top Up (DepositQRScreen onSubmitDeposit):
+
+Input → { amount, paymentMethod, transactionId, receiptImage }
+Side effects:
+  1. Creates UnitDepositRequest (status: 'pending')
+  2. Creates AppNotification (status: 'pending')
+  3. Creates Transaction (status: 'pending')
+  4. Shows success toast
+  5. setTimeout(3000ms):
+     - Updates request → status: 'approved'
+     - Updates notification → 'approved' title/message
+     - Updates transaction → status: 'approved'
+     - Calls updateBalance(+amount)
+     - Shows approved toast
+Buy Units (UnitRequestModal onSubmit):
+
+Input → { amount, paymentMethod, transactionId, paymentScreenshot, note? }
+Side effects: Same lifecycle as Top Up
+Cash Out (CashoutModal onSubmit):
+
+Input → { amount, paymentMethod, accountInfo, note? }
+Side effects:
+  1. Creates UnitDepositRequest (type: 'cashout', status: 'pending')
+  2. Creates AppNotification (status: 'pending')
+  3. Creates Transaction (type: 'cashout', amount: -amount, status: 'pending')
+  4. setTimeout(3000ms):
+     - All updates same pattern but with cashout messaging
+     - Calls updateBalance(-amount)
+9.2 Navigation Interception
+handleNavigate(screen: string): void
+If screen === 'place-bet': opens SessionSelectionModal instead of navigating
+Otherwise: calls setCurrentScreen(screen) directly
+

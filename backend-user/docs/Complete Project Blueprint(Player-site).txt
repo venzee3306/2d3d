@@ -1,0 +1,313 @@
+Complete Project Blueprint: Myanmar Lottery Player Platform
+1. Project Overview
+Item	Detail
+Platform	Mobile-first Myanmar 2D/3D lottery player app
+Stack	React 18 + Tailwind CSS v4 + Vite
+Animation	motion (Motion/React) for spring animations
+Toasts	sonner for toast notifications
+UI Library	Full ShadCN/Radix UI component set under /src/app/components/ui/
+Icons	lucide-react
+Routing	No React Router — SPA with currentScreen string state in App.tsx
+Language	Bilingual: Myanmar (Unicode) / English, toggled via language state
+Color Palette	Warm bronze-gold: #6B4F36 → #8B6E4E → #5C3F28 headers, #FAF6F0 background
+Auth	Mock login (aungaung / player123)
+Persistence	None — all state is in-memory React state (no localStorage yet)
+2. File Structure
+/
+├── package.json                          # Dependencies & scripts
+├── vite.config.ts                        # Vite build config
+├── postcss.config.mjs                    # PostCSS config
+│
+├── src/
+│   ├── styles/
+│   │   ├── theme.css                     # CSS custom properties (bronze-gold palette)
+│   │   ├── fonts.css                     # Font imports (Padauk, Noto Sans Myanmar)
+│   │   ├── index.css                     # Global styles
+│   │   └── tailwind.css                  # Tailwind v4 base
+│   │
+│   ├── imports/                          # Reference docs & code snippets
+│   │   ├── player-app-prompt.md          # Original project spec
+│   │   ├── 2d-quick-add-patterns.md      # 2D pattern documentation
+│   │   ├── 3d-pattern-implementation.md  # 3D pattern documentation
+│   │   ├── betting-records.md            # Betting records spec
+│   │   ├── buy-units-flow.md             # Buy Units flow spec
+│   │   ├── input-patterns.tsx            # Pattern input reference
+│   │   ├── number-helpers.ts             # Number helper reference
+│   │   ├── patterns-1.ts                 # Pattern logic reference
+│   │   ├── quick-patterns.ts             # Quick pattern reference
+│   │   ├── player-bet-entry-2.tsx        # Bet entry UI reference
+│   │   └── player-bet-entry-modal.tsx    # Bet modal reference
+│   │
+│   └── app/
+│       ├── App.tsx                       # ★ MAIN ENTRY — screen router & modal orchestrator
+│       │
+│       ├── context/
+│       │   └── NewAppContext.tsx          # ★ GLOBAL STATE — auth, balance, cart, bets, transactions
+│       │
+│       ├── data/
+│       │   ├── newMockData.ts            # ★ TYPE DEFINITIONS + MOCK DATA
+│       │   ├── newTranslations.ts        # ★ BILINGUAL TRANSLATIONS (en/mm)
+│       │   └── patternDefinitions.ts     # 31 pattern definitions (25×2D + 6×3D)
+│       │
+│       ├── utils/
+│       │   ├── quickPatterns.ts          # ★ PATTERN GENERATORS (all 31 pattern algorithms)
+│       │   ├── patterns.ts              # Legacy pattern types & generators
+│       │   └── qrGenerator.ts           # Canvas-based QR code generator
+│       │
+│       └── components/
+│           ├── figma/
+│           │   └── ImageWithFallback.tsx  # [PROTECTED] Image fallback component
+│           │
+│           ├── ui/                        # Full ShadCN/Radix UI library (40+ components)
+│           │   ├── accordion.tsx, alert.tsx, alert-dialog.tsx, ...
+│           │   ├── button.tsx, card.tsx, checkbox.tsx, dialog.tsx, ...
+│           │   ├── select.tsx, sheet.tsx, tabs.tsx, tooltip.tsx, ...
+│           │   └── utils.ts, use-mobile.ts
+│           │
+│           ├── NewLoginScreen.tsx         # Login screen
+│           ├── NewDashboard.tsx           # Home/Dashboard screen
+│           ├── NewBetScreen.tsx           # Cart-based bet screen
+│           ├── PlayerBettingInterface.tsx # ★ FULL-SCREEN BETTING MODAL (Quick Add Patterns)
+│           ├── SessionSelectionModal.tsx  # AM/PM session picker modal
+│           ├── NewHistoryScreen.tsx       # Betting history (SavedRecords)
+│           ├── NewResultsScreen.tsx       # 2D/3D results (dark navy theme)
+│           ├── NewTransactionsScreen.tsx  # Transactions & Unit Requests tabs
+│           ├── NewProfileScreen.tsx       # Profile & Settings
+│           ├── DepositQRScreen.tsx        # ★ 3-PHASE TOP UP FLOW
+│           ├── UnitRequestModal.tsx       # Buy Units modal (legacy, still used by Transactions)
+│           ├── CashoutModal.tsx           # Cash Out modal
+│           ├── BankScreen.tsx             # Bank/Payment accounts screen
+│           ├── BankAccountModal.tsx       # Add/Edit bank account modal
+│           ├── NotificationPanel.tsx      # Slide-over notification panel
+│           ├── LeftSidebar.tsx            # Desktop left sidebar nav
+│           └── NewBottomNav.tsx           # Mobile bottom tab bar
+3. Navigation Architecture
+Screen Routing (via currentScreen state in App.tsx)
+Screen Key	Component	Access Points
+dashboard	NewDashboard	Bottom nav "Home", Login redirect, default
+place-bet	NewBetScreen	Intercepted → opens SessionSelectionModal first
+history	NewHistoryScreen	Bottom nav, sidebar, betting interface quick action
+results	NewResultsScreen	Sidebar, profile links, betting interface quick action
+transactions	NewTransactionsScreen	Dashboard "Balance" link, betting interface quick action
+profile	NewProfileScreen	Bottom nav, sidebar, betting interface "Settings"
+bank	BankScreen	Profile links
+deposit-qr	DepositQRScreen	Dashboard "Buy Units", Bank screen "Buy Units", Bottom nav "Top Up"
+Bottom Nav Order
+Home → Top Up → [Bet (center FAB)] → History → Profile
+(Results removed from nav — accessible via sidebar/profile only)
+
+Modal Overlays (managed in App.tsx)
+Modal	Trigger
+SessionSelectionModal	"Bet" nav tap or dashboard "Quick Bet"
+PlayerBettingInterface	After session selection (AM/PM)
+UnitRequestModal	Transactions screen "Buy Units" button
+CashoutModal	Dashboard/Transactions/Bank "Cash Out" buttons
+BankAccountModal	Bank screen "Add/Edit Account"
+NotificationPanel	Notification bell (slide-over from right)
+4. State Management (NewAppContext.tsx)
+Global State (React Context)
+State	Type	Description
+player	Player | null	Current authenticated player
+isAuthenticated	boolean	Auth flag
+language	'en' | 'mm'	Active language
+balance	number	Player's unit balance (MMK)
+cart	CartItem[]	Current betting cart
+bets	Bet[]	All placed bets
+transactions	Transaction[]	Financial transaction records
+favoriteNumbers	{ '2D': string[], '3D': string[] }	Saved favorite numbers
+Local State (in App.tsx)
+State	Type	Description
+currentScreen	string	Active screen key
+showSessionSelection	boolean	Session modal visibility
+showQuickBetModal	boolean	Betting interface visibility
+selectedSession	'AM' | 'PM'	Selected betting session
+savedRecords	SavedRecord[]	Completed betting submissions
+notifications	AppNotification[]	All notifications
+unitRequests	UnitDepositRequest[]	Top Up/Buy Units/Cash Out requests
+showUnitRequestModal	boolean	Buy Units modal
+showCashoutModal	boolean	Cash Out modal
+bankAccounts	BankAccount[]	Player's saved payment accounts
+showBankAccountModal	boolean	Bank account modal
+editingAccount	BankAccount | null	Account being edited
+Key Context Functions
+Function	Description
+login(username, password)	Authenticates against mock player data
+logout()	Clears all auth + resets state
+updateBalance(amount)	Adds/subtracts from balance
+addToCart(items)	Adds items to betting cart
+placeBets(sessionId)	Converts cart → bets, deducts balance, creates transaction
+placeBetsDirectly(items, sessionId)	Direct bet placement (skips cart), used by betting interface
+addTransaction(txn)	Creates a new transaction record
+updateTransaction(id, updates)	Updates existing transaction (e.g., pending → approved)
+t(key)	Translation lookup (dot-notation keys)
+5. Data Models (newMockData.ts)
+Player
+├── id, name, nameMM, username, password
+├── phoneNumber, balance, agentId
+├── status ('active' | 'suspended'), createdAt
+
+Bet
+├── id, playerId, playerName
+├── gameType ('2D' | '3D'), betNumber, amount
+├── round ('Morning' | 'Evening'), placedAt
+├── status ('Pending' | 'Won' | 'Lost')
+├── winAmount?, sessionId?, pattern?
+
+CartItem
+├── id, gameMode ('2D' | '3D'), number, amount, pattern?
+
+SavedRecord (betting submission receipt)
+├── id, session, timestamp, playerName
+├── bets: SavedRecordBetItem[], total
+
+Transaction
+├── id, playerId, type ('deposit' | 'bet' | 'win' | 'loss' | 'cashout')
+├── amount, balance, description, descriptionMM
+├── timestamp, status? ('pending' | 'approved' | 'rejected')
+├── relatedBetId?, paymentMethod?
+
+DailyResult
+├── id, date, gameType, round, winningNumber, announcedAt
+
+PayoutRate
+├── gameType, multiplier (2D=85x, 3D=500x), description
+
+BlockedNumber
+├── number, gameType, reason, reasonMM
+
+BankAccount
+├── id, playerId, paymentMethod (6 types), accountName
+├── accountNumber, bankName?, isDefault, createdAt
+
+AgentPaymentProfile
+├── agentId, agentName, agentNameMM
+├── paymentMethods: AgentPaymentMethod[] (KBZ/Wave/CB/AYA/One/Bank)
+├── lastSynced
+
+UnitDepositRequest
+├── id, requesterId, requesterName, requesterRole
+├── approverId, approverName, amount, paymentMethod
+├── transactionId, paymentScreenshot?, status, requestedAt
+├── processedAt?, note?, rejectionReason?
+├── type ('deposit' | 'cashout'), accountInfo?
+6. Key Feature Systems
+A. Betting System (PlayerBettingInterface.tsx)
+Full-screen modal with session-aware coloring (AM = amber-gold, PM = bronze-brown)
+25 × 2D Quick Add Patterns: group, top, break, back, round, reverse, khwe, khwe-puu, a-puu, sone-puu, ma-puu, pawa, natkha, nyi-ko, ko-nyi, nyi-ko-r, sone-ma, ma-sone, sone-ma-r, sone-sone, ma-ma, sone-kat, sone-kat-r, ma-kat, ma-kat-r
+6 × 3D Patterns: a-puu, hundred, series, nyi-ko, ko-nyi, reverse
+Pattern categories: A (modal input), B (instant-generate), C (context-dependent on betNumber)
+Live bet list with edit/delete per item
+Quick action buttons: History, Results, Balance, Settings (navigate & close modal)
+Balance deduction via placeBetsDirectly() → creates SavedRecord for history
+B. Top Up Flow (DepositQRScreen.tsx) — 3 Phases
+Phase 1: Payment method selection grid (6 methods from Agent's profile)
+Phase 2: QR code display + form (Unit Amount + Transaction ID only)
+Phase 3: Full-screen success animation
+C. Request Flows (3 types, all with mock auto-approval)
+Flow	Trigger	Creates
+Top Up	Dashboard "Buy Units" → DepositQRScreen	UnitDepositRequest + Transaction (pending → approved 3s) + Notification
+Buy Units	Transactions "Buy Units" → UnitRequestModal	Same pattern as Top Up
+Cash Out	"Cash Out" buttons → CashoutModal	UnitDepositRequest (type: cashout) + Transaction + Notification
+All 3 flows:
+
+Create status: 'pending' records immediately
+Show yellow "Pending" badge in Transactions tab
+Auto-approve after 3 seconds → green "Approved" badge
+Update balance on approval
+Push real-time notifications
+D. Notification System (NotificationPanel.tsx)
+Event-driven: notifications created by Top Up, Buy Units, Cash Out, and bet actions
+Slide-over panel from right side
+Unread counter badge on notification bell
+Actions: mark read, mark all read, delete, clear all
+Status tracking: pending → approved (matches transaction lifecycle)
+E. Results Screen (NewResultsScreen.tsx)
+Dark navy theme (contrasts with warm main palette)
+2D/3D tabs with historical winning numbers
+Dream Book: number-to-meaning lookup
+Hot Numbers: frequency analysis of winning numbers
+30 days of mock daily results (2D morning + evening, 3D every 5 days)
+F. History Screen (NewHistoryScreen.tsx)
+Based on SavedRecord objects (complete betting submission receipts)
+Shows session, timestamp, player name, individual bets, total
+Delete individual records
+G. Bank System (BankScreen.tsx + BankAccountModal.tsx)
+6 payment methods: KBZ Pay, Wave Pay, CB Pay, AYA Pay, OnePay, Bank Transfer
+Full CRUD: Add, Edit, Delete accounts
+Set Default account
+10 Myanmar banks supported for Bank Transfer type
+H. Profile Screen (NewProfileScreen.tsx)
+Player info display
+Language toggle (EN/MM)
+Navigation links to Results, Transactions, Bank
+Custom in-app logout confirmation modal
+7. Design System
+Color Tokens (theme.css)
+Token	Value	Usage
+--background	#FAF6F0	Page background (warm cream)
+--primary	#B8860B	Primary actions (dark goldenrod)
+--secondary	#8B6914	Secondary elements
+--accent	#C8A855	Accent highlights
+--muted	#F2EBD9	Muted backgrounds
+--destructive	#C0392B	Delete/error actions
+Session-Aware Header Gradients
+Session	Gradient	Used In
+AM	Amber → Gold → Orange	Header, session badge, bet entry title
+PM	#6B4F36 → #8B6E4E → #5C3F28	Header, session badge, bet entry title
+Typography
+Myanmar: Padauk, Noto Sans Myanmar font family
+English: System font stack
+All Myanmar text uses proper Unicode (zero \n characters)
+8. Mock Data Defaults
+Data	Default
+Player	Aung Aung / အောင်အောင် (balance: 100,000 MMK)
+Login credentials	aungaung / player123
+Payout rates	2D = 85x, 3D = 500x
+Daily results	30 days auto-generated (2D AM+PM, 3D every 5 days)
+Bets	Empty (placed during session)
+Transactions	Empty (created by flows)
+Bank accounts	3 pre-loaded (KBZ Pay, Wave Pay, Bank Transfer)
+Agent profile	Agent Kyaw with 6 active payment methods
+Unit requests	Empty
+Blocked numbers	Empty
+9. Known Gaps / Not Yet Implemented
+Gap	Detail
+No localStorage persistence	savedRecords, notifications, unitRequests, bankAccounts, and all context state reset on page refresh
+No real backend	All flows use mock data and 3-second setTimeout auto-approval
+No real QR codes	Canvas-generated deterministic grid patterns (placeholder)
+No visual testing done	UI has not been comprehensively tested across devices
+UnitRequestModal still used	Transactions screen "Buy Units" still opens the old modal instead of DepositQRScreen
+No password change	Profile shows the option but no implementation
+No real-time updates	No WebSocket/SSE for live result announcements
+No image upload	Receipt/screenshot upload is captured but stored as base64 in memory only
+10. Dependency Map
+App.tsx (orchestrator)
+├── NewAppContext (global state provider)
+│   ├── newMockData (types + mock data)
+│   ├── newTranslations (i18n strings)
+│   └── patterns (legacy pattern types)
+│
+├── Screen Components
+│   ├── NewLoginScreen
+│   ├── NewDashboard → [Buy Units → DepositQRScreen]
+│   ├── NewBetScreen → [cart system from context]
+│   ├── NewHistoryScreen → [SavedRecord from App.tsx state]
+│   ├── NewResultsScreen → [DailyResult from context]
+│   ├── NewTransactionsScreen → [Transaction + UnitDepositRequest]
+│   ├── NewProfileScreen
+│   ├── BankScreen → [BankAccount from App.tsx state]
+│   └── DepositQRScreen → [AgentPaymentProfile + qrGenerator]
+│
+├── Modal Components
+│   ├── SessionSelectionModal → PlayerBettingInterface
+│   │   └── quickPatterns + patternDefinitions (31 patterns)
+│   ├── UnitRequestModal
+│   ├── CashoutModal
+│   ├── BankAccountModal
+│   └── NotificationPanel (slide-over)
+│
+├── Navigation Components
+│   ├── NewBottomNav (mobile)
+│   └── LeftSidebar (desktop)
+│
+└── UI Primitives (40+ ShadCN/Radix components)

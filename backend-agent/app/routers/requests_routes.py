@@ -66,6 +66,7 @@ async def list_deposit_requests(
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current: Annotated[User, Depends(get_current_user)] = None,
 ):
+    """List deposit requests for the current user (agent sees their requests)."""
     q = select(DepositRequest)
     if agent_id:
         q = q.where(DepositRequest.agent_id == agent_id)
@@ -265,34 +266,28 @@ async def approve_deposit(
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
 ):
+    """Agent approves a player deposit request: deduct from agent balance, credit player in User Backend."""
     result = await db.execute(select(DepositRequest).where(DepositRequest.id == request_id))
     req = result.scalar_one_or_none()
     if not req or req.status != DepositRequestStatus.pending:
         raise HTTPException(status_code=404, detail="Request not found or not pending")
-    agent = await db.execute(select(User).where(User.id == req.agent_id))
-    agent = agent.scalar_one_or_none()
-    if current.role == UserRole.agent:
-        raise HTTPException(status_code=403, detail="Agents cannot approve deposit requests")
-    if current.role == UserRole.master and (not agent or agent.parent_id != current.id):
-        raise HTTPException(status_code=403, detail="Not your agent")
-    approver_bal = await _get_or_create_balance(db, current.id)
-    agent_bal = await _get_or_create_balance(db, req.agent_id)
+    if current.id != req.agent_id:
+        raise HTTPException(status_code=403, detail="Only the agent for this request can approve")
+    agent_bal = await _get_or_create_balance(db, current.id)
     amount = float(req.amount)
-    if float(approver_bal.balance) < amount:
+    if float(agent_bal.balance) < amount:
         raise HTTPException(status_code=400, detail="Insufficient balance")
-    approver_before = float(approver_bal.balance)
+    from app.services.user_backend_client import credit_player_deposit
+    ok = await credit_player_deposit(req.player_id, amount, request_id=req.id)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Could not credit player in User Backend")
     agent_before = float(agent_bal.balance)
-    approver_bal.balance = approver_before - amount
-    agent_bal.balance = agent_before + amount
+    agent_bal.balance = agent_before - amount
     req.status = DepositRequestStatus.approved
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
     now = datetime.utcnow()
-    agent_user = await db.execute(select(User).where(User.id == req.agent_id))
-    agent_user = agent_user.scalar_one_or_none()
-    agent_name = agent_user.name if agent_user else req.agent_id
-    db.add(Transaction(id=str(uuid.uuid4()), user_id=current.id, type=TransactionType.deposit_approve, amount=-amount, balance_before=approver_before, balance_after=approver_before - amount, related_user_id=req.agent_id, related_user_name=agent_name, timestamp=now))
-    db.add(Transaction(id=str(uuid.uuid4()), user_id=req.agent_id, type=TransactionType.transfer_in, amount=amount, balance_before=agent_before, balance_after=agent_before + amount, related_user_id=current.id, related_user_name=current.name, timestamp=now))
+    db.add(Transaction(id=str(uuid.uuid4()), user_id=current.id, type=TransactionType.deposit_approve, amount=-amount, balance_before=agent_before, balance_after=agent_before - amount, related_user_id=req.player_id, related_user_name=req.player_name, timestamp=now))
     return {"ok": True}
 
 

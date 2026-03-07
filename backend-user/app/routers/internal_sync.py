@@ -1,5 +1,7 @@
 """Internal API: called by Agent Backend (X-Internal-API-Key)."""
+from datetime import datetime
 from typing import Annotated
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -8,9 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_internal_api_key
 from app.database import get_db
-from app.models import Player
+from app.models import Player, Transaction
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+class CreditDepositBody(BaseModel):
+    """Agent backend calls this after approving a player deposit request."""
+    player_id: str
+    amount: float
+    request_id: str | None = None
+    description: str | None = None
 
 
 def _player_payload(p: Player) -> dict:
@@ -104,3 +114,38 @@ async def get_player_balance(
     if not p:
         return {"player_id": player_id, "balance": None}
     return {"player_id": p.id, "balance": float(p.balance)}
+
+
+@router.post("/credit-deposit")
+async def credit_deposit(
+    data: CreditDepositBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[None, Depends(require_internal_api_key)],
+):
+    """
+    Credit a player's balance after agent approved a deposit request.
+    Called by Agent Backend when agent approves a player deposit.
+    """
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    result = await db.execute(select(Player).where(Player.id == data.player_id).with_for_update())
+    p = result.scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Player not found")
+    before = float(p.balance)
+    p.balance = before + data.amount
+    now = datetime.utcnow()
+    desc = data.description or "Deposit approved"
+    tx = Transaction(
+        id=str(uuid.uuid4()),
+        player_id=p.id,
+        type="deposit",
+        amount=data.amount,
+        balance_after=float(p.balance),
+        description=desc,
+        related_bet_id=None,
+        timestamp=now,
+    )
+    db.add(tx)
+    await db.flush()
+    return {"ok": True, "player_id": p.id, "balance_after": float(p.balance)}

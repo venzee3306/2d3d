@@ -1,17 +1,32 @@
 """Internal sync API: called by User Onboarding Backend (X-Internal-API-Key)."""
+from datetime import datetime
 from typing import Annotated
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_internal_api_key
 from app.database import get_db
-from app.models import User, UserBalance, PlayerSnapshot, BlockedNumber
+from app.models import User, UserBalance, PlayerSnapshot, BlockedNumber, DepositRequest
+from app.models.requests import DepositRequestStatus
 from app.models.user import UserRole
 from app.schemas.sync import PlayerSyncPayload, AgentLimitResponse
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+class InternalDepositRequestCreate(BaseModel):
+    """Create a player deposit request (called by User Backend when player requests top-up)."""
+    player_id: str
+    player_name: str
+    agent_id: str
+    amount: float
+    transaction_id: str
+    payment_method: str | None = None
+    note: str | None = None
 
 
 @router.post("/players")
@@ -113,3 +128,60 @@ async def get_agent_limits(
         blocked_numbers_2d=bn_2d,
         blocked_numbers_3d=bn_3d,
     )
+
+
+# ----- Internal deposit requests (User Backend creates/lists on behalf of player) -----
+
+
+def _deposit_request_to_dict(r: DepositRequest) -> dict:
+    return {
+        "id": r.id,
+        "player_id": r.player_id,
+        "player_name": r.player_name,
+        "agent_id": r.agent_id,
+        "amount": float(r.amount),
+        "transaction_id": r.transaction_id,
+        "payment_method": r.payment_method,
+        "status": r.status.value,
+        "requested_at": r.requested_at.isoformat() if isinstance(r.requested_at, datetime) else r.requested_at,
+        "processed_at": r.processed_at.isoformat() if r.processed_at else None,
+        "note": r.note,
+    }
+
+
+@router.post("/deposit-requests")
+async def internal_create_deposit_request(
+    data: InternalDepositRequestCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[None, Depends(require_internal_api_key)],
+):
+    """Create a player deposit request. Called by User Backend when player submits top-up."""
+    req = DepositRequest(
+        id=str(uuid.uuid4()),
+        player_id=data.player_id,
+        player_name=data.player_name,
+        agent_id=data.agent_id,
+        amount=data.amount,
+        transaction_id=data.transaction_id,
+        payment_method=data.payment_method,
+        status=DepositRequestStatus.pending,
+        note=data.note,
+    )
+    db.add(req)
+    await db.flush()
+    return _deposit_request_to_dict(req)
+
+
+@router.get("/deposit-requests")
+async def internal_list_deposit_requests(
+    player_id: str | None = Query(None, description="Filter by player_id"),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    _: Annotated[None, Depends(require_internal_api_key)] = None,
+) -> list[dict]:
+    """List deposit requests, optionally by player_id. Called by User Backend for player's list."""
+    q = select(DepositRequest).order_by(DepositRequest.requested_at.desc())
+    if player_id:
+        q = q.where(DepositRequest.player_id == player_id)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    return [_deposit_request_to_dict(r) for r in rows]
