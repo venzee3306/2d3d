@@ -28,7 +28,8 @@ In [Vercel Dashboard](https://vercel.com) → **2d3d** → **Settings** → **Ge
 | **Root Directory** | Leave empty (build from repo root) |
 | **Build Command** | `bash scripts/vercel-build.sh Useronboarding` |
 | **Output Directory** | `Useronboarding/dist` |
-| **Install Command** | *(leave empty; root `vercel.json` runs `bash scripts/vercel-install.sh`)* |
+| **Install Command** | *(leave empty; root `vercel.json` runs install script)* |
+| **Build Command** | *(leave empty; root `vercel.json` runs build script; default app = Useronboarding)* |
 
 In **Settings** → **Environment Variables**, add for Production (and Preview if needed):
 
@@ -44,12 +45,13 @@ In [Vercel Dashboard](https://vercel.com) → **2d3d-eonb** → **Settings** →
 | Setting | Value |
 |--------|--------|
 | **Root Directory** | Leave empty |
-| **Build Command** | `bash scripts/vercel-build.sh Agentdashboard2d3d` |
-| **Output Directory** | `Agentdashboard2d3d/dist` |
+| **Build Command** | *(leave empty; root `vercel.json` runs the script; script uses `VERCEL_APP_DIR`)* |
+| **Output Directory** | **`Agentdashboard2d3d/dist`** ← override this (repo default is Useronboarding/dist) |
 
 In **Settings** → **Environment Variables**:
 
 - `GITHUB_TOKEN` (or `GITHUB_REPO_CLONE_TOKEN`) = your GitHub token (see §0)
+- **`VERCEL_APP_DIR`** = **`Agentdashboard2d3d`** (so the build script builds the agent app)
 - `VITE_AGENT_API_URL` = your Agent backend URL (e.g. `https://2d3d-backend-agent.onrender.com`)
 
 ---

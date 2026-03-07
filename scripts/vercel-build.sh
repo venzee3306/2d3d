@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Usage: bash scripts/vercel-build.sh <Useronboarding|Agentdashboard2d3d>
+# Usage: bash scripts/vercel-build.sh [Useronboarding|Agentdashboard2d3d]
+# Or set VERCEL_APP_DIR (used by vercel.json when two projects share one repo).
 # Run from repo root. Requires submodules to be initialized (vercel.json installCommand).
 set -e
-APP_DIR="${1:?Usage: $0 Useronboarding|Agentdashboard2d3d}"
+APP_DIR="${1:-$VERCEL_APP_DIR}"
+APP_DIR="${APP_DIR:-Useronboarding}"
 if [ ! -d "$APP_DIR" ]; then
-  echo "Error: directory $APP_DIR not found. Run from repo root and ensure submodules are fetched."
+  echo "Error: directory $APP_DIR not found. Run from repo root and ensure submodules are fetched. Set VERCEL_APP_DIR or pass the app dir."
   exit 1
 fi
 cd "$APP_DIR"

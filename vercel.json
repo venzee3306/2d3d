@@ -1,4 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "bash \"$(git rev-parse --show-toplevel)/scripts/vercel-install.sh\""
+  "installCommand": "bash \"$(git rev-parse --show-toplevel)/scripts/vercel-install.sh\"",
+  "buildCommand": "bash \"$(git rev-parse --show-toplevel)/scripts/vercel-build.sh\"",
+  "outputDirectory": "Useronboarding/dist"
 }
