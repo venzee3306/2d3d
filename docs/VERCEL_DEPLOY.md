@@ -25,7 +25,7 @@ In [Vercel Dashboard](https://vercel.com) → **2d3d** → **Settings** → **Ge
 
 | Setting | Value |
 |--------|--------|
-| **Root Directory** | Leave empty (build from repo root) |
+| **Root Directory** | **Leave empty** (build must run from repo root so the build script is found) |
 | **Build Command** | `bash scripts/vercel-build.sh Useronboarding` |
 | **Output Directory** | `Useronboarding/dist` |
 | **Install Command** | *(leave empty; root `vercel.json` runs install script)* |
@@ -44,7 +44,7 @@ In [Vercel Dashboard](https://vercel.com) → **2d3d-eonb** → **Settings** →
 
 | Setting | Value |
 |--------|--------|
-| **Root Directory** | Leave empty |
+| **Root Directory** | **Leave empty** (same as above) |
 | **Build Command** | *(leave empty; root `vercel.json` runs the script; script uses `VERCEL_APP_DIR`)* |
 | **Output Directory** | **`Agentdashboard2d3d/dist`** ← override this (repo default is Useronboarding/dist) |
 
@@ -77,7 +77,13 @@ In **Settings** → **Environment Variables**:
 
 ---
 
-## 5. If submodule fetch still fails
+## 5. Root Directory must be empty
+
+For both projects, **Root Directory** in Settings → General must be **empty**. The build and install commands in `vercel.json` assume they run from the **monorepo root** (where `scripts/` and `vercel.json` live). If you set Root Directory to `Useronboarding` or `Agentdashboard2d3d`, the build can fail with “scripts/vercel-build.sh: No such file or directory”. Leave it empty and use **VERCEL_APP_DIR** (for 2d3d-eonb) and **Output Directory** override instead.
+
+---
+
+## 6. If submodule fetch still fails
 
 - **“could not read Username”** → Add `GITHUB_TOKEN` (or `GITHUB_REPO_CLONE_TOKEN`) in both projects (§0) and redeploy.
 - **“destination path already exists”** → The install script removes submodule dirs before cloning; ensure you’re on the latest commit that includes `scripts/vercel-install.sh`.
