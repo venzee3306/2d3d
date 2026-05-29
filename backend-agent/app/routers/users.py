@@ -41,12 +41,12 @@ async def list_users(
     q = q.offset(skip).limit(limit)
     result = await db.execute(q)
     users = list(result.scalars().all())
-    return [UserResponse(id=u.id, name=u.name, username=u.username, role=u.role, parent_id=u.parent_id) for u in users]
+    return [UserResponse.model_validate(u) for u in users]
 
 
 @router.get("/me", response_model=UserResponse)
 async def me(current: Annotated[User, Depends(get_current_user)]):
-    return UserResponse(id=current.id, name=current.name, username=current.username, role=current.role, parent_id=current.parent_id)
+    return UserResponse.model_validate(current)
 
 
 @router.patch("/me", response_model=UserResponse)
@@ -66,7 +66,7 @@ async def update_me(
             raise HTTPException(status_code=400, detail="current_password is incorrect")
         current.password_hash = hash_password(data.new_password)
     await db.flush()
-    return UserResponse(id=current.id, name=current.name, username=current.username, role=current.role, parent_id=current.parent_id)
+    return UserResponse.model_validate(current)
 
 
 @router.post("/me/change-password")
@@ -95,10 +95,34 @@ async def create_user(
     existing = await db.execute(select(User).where(User.username == data.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already exists")
-    parent_ok = data.parent_id is None or (await db.execute(select(User).where(User.id == data.parent_id))).scalar_one_or_none()
-    if data.parent_id and not parent_ok:
-        raise HTTPException(status_code=400, detail="Parent user not found")
+    parent = None
+    if data.parent_id:
+        parent_res = await db.execute(select(User).where(User.id == data.parent_id))
+        parent = parent_res.scalar_one_or_none()
+        if not parent:
+            raise HTTPException(status_code=400, detail="Parent user not found")
     user_id = str(uuid.uuid4())
+    cr = data.commission_rate if data.commission_rate is not None else 10
+    tbl = data.total_bet_limit if data.total_bet_limit is not None else 5_000_000
+    snl = data.single_number_limit if data.single_number_limit is not None else 500_000
+    p2d = data.payout_2d if data.payout_2d is not None else 80
+    p3d = data.payout_3d if data.payout_3d is not None else 500
+    if parent and data.role == UserRole.agent:
+        pcr = (parent.commission_rate or 17)
+        ptbl = (parent.total_bet_limit or 10_000_000)
+        psnl = (parent.single_number_limit or 1_000_000)
+        pp2d = parent.payout_2d or 85
+        pp3d = parent.payout_3d or 500
+        if cr > pcr:
+            raise HTTPException(status_code=400, detail=f"Commission rate cannot exceed parent's rate ({pcr}%)")
+        if tbl > ptbl:
+            raise HTTPException(status_code=400, detail="Total bet limit cannot exceed parent's limit")
+        if snl > psnl:
+            raise HTTPException(status_code=400, detail="Single number limit cannot exceed parent's limit")
+        if p2d > pp2d:
+            raise HTTPException(status_code=400, detail="2D payout cannot exceed parent's rate")
+        if p3d > pp3d:
+            raise HTTPException(status_code=400, detail="3D payout cannot exceed parent's rate")
     user = User(
         id=user_id,
         name=data.name,
@@ -106,13 +130,18 @@ async def create_user(
         password_hash=hash_password(data.password),
         role=data.role,
         parent_id=data.parent_id,
+        commission_rate=cr,
+        total_bet_limit=tbl,
+        single_number_limit=snl,
+        payout_2d=p2d,
+        payout_3d=p3d,
     )
     db.add(user)
     await db.flush()
     from app.models import UserBalance
     db.add(UserBalance(user_id=user_id, balance=0, locked_balance=0))
     await db.flush()
-    return UserResponse(id=user.id, name=user.name, username=user.username, role=user.role, parent_id=user.parent_id)
+    return UserResponse.model_validate(user)
 
 
 def _can_access_user(current: User, target_id: str, target_parent_id: str | None) -> bool:
@@ -138,7 +167,7 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     if not _can_access_user(current, user.id, user.parent_id):
         raise HTTPException(status_code=403, detail="Not allowed to access this user")
-    return UserResponse(id=user.id, name=user.name, username=user.username, role=user.role, parent_id=user.parent_id)
+    return UserResponse.model_validate(user)
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
@@ -159,6 +188,9 @@ async def update_user(
     if data.name is not None:
         user.name = data.name
     if data.username is not None:
+        other = await db.execute(select(User).where(User.username == data.username, User.id != user.id))
+        if other.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already exists")
         user.username = data.username
     if data.password is not None:
         user.password_hash = hash_password(data.password)
@@ -166,8 +198,43 @@ async def update_user(
         user.role = data.role
     if data.parent_id is not None:
         user.parent_id = data.parent_id
+    if data.commission_rate is not None:
+        if user.parent_id and user.role == UserRole.agent:
+            parent_res = await db.execute(select(User).where(User.id == user.parent_id))
+            parent = parent_res.scalar_one_or_none()
+            if parent and data.commission_rate > (parent.commission_rate or 17):
+                raise HTTPException(status_code=400, detail=f"Commission rate cannot exceed parent's rate ({parent.commission_rate or 17}%)")
+        user.commission_rate = data.commission_rate
+    if data.total_bet_limit is not None:
+        if user.parent_id and user.role == UserRole.agent:
+            parent_res = await db.execute(select(User).where(User.id == user.parent_id))
+            parent = parent_res.scalar_one_or_none()
+            if parent and data.total_bet_limit > (parent.total_bet_limit or 10_000_000):
+                raise HTTPException(status_code=400, detail="Total bet limit cannot exceed parent's limit")
+        user.total_bet_limit = data.total_bet_limit
+    if data.single_number_limit is not None:
+        if user.parent_id and user.role == UserRole.agent:
+            parent_res = await db.execute(select(User).where(User.id == user.parent_id))
+            parent = parent_res.scalar_one_or_none()
+            if parent and data.single_number_limit > (parent.single_number_limit or 1_000_000):
+                raise HTTPException(status_code=400, detail="Single number limit cannot exceed parent's limit")
+        user.single_number_limit = data.single_number_limit
+    if data.payout_2d is not None:
+        if user.parent_id and user.role == UserRole.agent:
+            parent_res = await db.execute(select(User).where(User.id == user.parent_id))
+            parent = parent_res.scalar_one_or_none()
+            if parent and data.payout_2d > (parent.payout_2d or 85):
+                raise HTTPException(status_code=400, detail="2D payout cannot exceed parent's rate")
+        user.payout_2d = data.payout_2d
+    if data.payout_3d is not None:
+        if user.parent_id and user.role == UserRole.agent:
+            parent_res = await db.execute(select(User).where(User.id == user.parent_id))
+            parent = parent_res.scalar_one_or_none()
+            if parent and data.payout_3d > (parent.payout_3d or 500):
+                raise HTTPException(status_code=400, detail="3D payout cannot exceed parent's rate")
+        user.payout_3d = data.payout_3d
     await db.flush()
-    return UserResponse(id=user.id, name=user.name, username=user.username, role=user.role, parent_id=user.parent_id)
+    return UserResponse.model_validate(user)
 
 
 @router.delete("/{user_id}")

@@ -3,7 +3,7 @@
     "render": {
       "url": "https://mcp.render.com/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_RENDER_API_KEY"
+        "Authorization": "Bearer rnd_Wrb9uvbugoVcs1uLuiN7sJ4Beeoz"
       }
     },
     "vercel": {
@@ -12,14 +12,14 @@
     "neon": {
       "url": "https://mcp.neon.tech/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_NEON_API_KEY"
+        "Authorization": "Bearer napi_eus45a7i3zz8icn6vzhl5ol27s5jip4owtf8tb81od85u9bkwka5luj96enybfrr"
       }
     },
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "Y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"
       }
     }
   }

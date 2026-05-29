@@ -1,7 +1,11 @@
 import os
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from pydantic_settings import BaseSettings
+
+# App root (backend-agent) so upload paths are consistent regardless of cwd
+_APP_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _sanitize_db_url(url: str) -> str:
@@ -28,6 +32,8 @@ class Settings(BaseSettings):
 
     secret_key: str = "change-me-in-production"
     user_backend_url: str = "http://localhost:8001"
+    twod_upstream_url: str = "https://luke.2dboss.com/api/luke/twod-result-live"
+    timezone: str = "Asia/Yangon"
     internal_api_key: str = "shared-internal-api-key"
     port: int = 8000  # Override with PORT in production
     access_token_expire_minutes: int = 60
@@ -41,6 +47,20 @@ class Settings(BaseSettings):
     auth_bind_user_agent: bool = True
     cookie_bind_name: str = "agent_access_token_bind"
     cors_origins: str = ""
+    # Base URL for serving uploaded files (e.g. http://localhost:8000)
+    base_url: str = "http://localhost:8000"
+    # Directory for QR images (relative to backend-agent app root)
+    upload_dir: str = "uploads/bank-qr"
+
+    @property
+    def upload_dir_resolved(self) -> Path:
+        """Absolute path for uploads so static files are found regardless of cwd."""
+        return (_APP_ROOT / self.upload_dir).resolve()
+
+    @property
+    def uploads_parent_resolved(self) -> Path:
+        """Parent of upload_dir for StaticFiles mount (e.g. .../uploads)."""
+        return self.upload_dir_resolved.parent
 
     class Config:
         env_file = ".env"

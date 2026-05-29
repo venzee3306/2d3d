@@ -3,10 +3,12 @@ from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
+    get_current_user,
     verify_password,
     create_access_token,
     hash_password,
@@ -87,13 +89,7 @@ def _clear_auth_cookies(response: Response) -> None:
 
 
 def _user_to_response(user: User) -> UserResponse:
-    return UserResponse(
-        id=user.id,
-        name=user.name,
-        username=user.username,
-        role=user.role,
-        parent_id=user.parent_id,
-    )
+    return UserResponse.model_validate(user)
 
 
 async def _issue_tokens(db: AsyncSession, user: User):
@@ -165,3 +161,14 @@ async def refresh(
 async def logout(response: Response):
     _clear_auth_cookies(response)
     return {"ok": True}
+
+
+class WsTokenResponse(BaseModel):
+    token: str
+
+
+@router.get("/ws-token", response_model=WsTokenResponse)
+async def get_ws_token(current: Annotated[User, Depends(get_current_user)]):
+    """Return a short-lived token for WebSocket auth. Client uses it in ws URL: ws://host/ws?token=..."""
+    token = create_access_token(str(current.id), current.role.value)
+    return WsTokenResponse(token=token)

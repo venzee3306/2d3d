@@ -48,19 +48,21 @@ class TokenResponse(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Response when using secure cookies: no tokens in body (tokens in HttpOnly cookies)."""
+    """Response when using secure cookies; optional body refresh token for fallback clients."""
     player: PlayerResponse
     token_type: str = "bearer"
+    refresh_token: str | None = None
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str  # optional when using cookie; server reads from cookie
+    refresh_token: str | None = None  # optional when using cookie; server reads from cookie
 
 
 class RefreshResponse(BaseModel):
     """When using cookies, access_token is set in cookie; body can be empty or this."""
     access_token: str | None = None  # None when using cookies
     token_type: str = "bearer"
+    refresh_token: str | None = None
 
 
 class PlayerMeUpdate(BaseModel):

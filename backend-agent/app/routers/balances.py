@@ -12,6 +12,7 @@ from app.models import User, UserBalance, Transaction
 from app.models.transaction import TransactionType
 from app.models.user import UserRole
 from app.schemas.balance import BalanceResponse, TransferRequest, CreateUnitsRequest
+from app.websocket import broadcast_units_updated
 
 router = APIRouter(prefix="/balances", tags=["balances"])
 
@@ -72,6 +73,7 @@ async def transfer(
         (uuid.uuid4(), to_user.id, TransactionType.transfer_in, data.amount, to_before, to_before + data.amount, current.id, current.name),
     ]:
         db.add(Transaction(id=str(tid), user_id=uid, type=typ, amount=amt, balance_before=before, balance_after=after, related_user_id=rel_id, related_user_name=rel_name, note=data.note, timestamp=now))
+    await broadcast_units_updated()
     return {"ok": True, "from_balance": float(from_bal.balance), "to_balance": float(to_bal.balance)}
 
 
@@ -89,4 +91,5 @@ async def create_units(
     before = float(target.balance)
     target.balance = before + data.amount
     db.add(Transaction(id=str(uuid.uuid4()), user_id=data.user_id, type=TransactionType.admin_create, amount=data.amount, balance_before=before, balance_after=before + data.amount, note=data.note, timestamp=datetime.utcnow()))
+    await broadcast_units_updated()
     return {"ok": True, "balance": float(target.balance)}

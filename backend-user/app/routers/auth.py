@@ -4,6 +4,7 @@ from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,7 +63,8 @@ def _set_auth_cookies(
         max_age=REFRESH_TOKEN_MAX_AGE,
         **kwargs,
     )
-    if getattr(settings, "auth_bind_user_agent", False) and user_agent:
+    # Set bind cookie even for empty UA strings so refresh keeps binding consistent.
+    if getattr(settings, "auth_bind_user_agent", False) and user_agent is not None:
         bind = compute_token_bind(access_token, user_agent)
         response.set_cookie(
             settings.cookie_bind_name,
@@ -89,7 +91,8 @@ def _set_access_cookie(
         max_age=ACCESS_TOKEN_MAX_AGE,
         **kwargs,
     )
-    if getattr(settings, "auth_bind_user_agent", False) and user_agent:
+    # Set bind cookie even for empty UA strings so refresh keeps binding consistent.
+    if getattr(settings, "auth_bind_user_agent", False) and user_agent is not None:
         bind = compute_token_bind(access_token, user_agent)
         response.set_cookie(settings.cookie_bind_name, bind, max_age=ACCESS_TOKEN_MAX_AGE, **kwargs)
 
@@ -151,8 +154,9 @@ async def login(
     if not player or not verify_password(data.password, player.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     access_token, refresh_token, _ = await _issue_tokens(db, player)
-    _set_auth_cookies(response, access_token, refresh_token, request.headers.get("User-Agent"))
-    return LoginResponse(player=_player_to_response(player))
+    user_agent = request.headers.get("User-Agent") or request.headers.get("user-agent") or ""
+    _set_auth_cookies(response, access_token, refresh_token, user_agent)
+    return LoginResponse(player=_player_to_response(player), refresh_token=refresh_token)
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -185,8 +189,9 @@ async def register(
     await db.flush()
     await sync_player_to_agent(player)
     access_token, refresh_token, _ = await _issue_tokens(db, player)
-    _set_auth_cookies(response, access_token, refresh_token, request.headers.get("User-Agent"))
-    return LoginResponse(player=_player_to_response(player))
+    user_agent = request.headers.get("User-Agent") or request.headers.get("user-agent") or ""
+    _set_auth_cookies(response, access_token, refresh_token, user_agent)
+    return LoginResponse(player=_player_to_response(player), refresh_token=refresh_token)
 
 
 @router.post("/refresh", response_model=RefreshResponse)
@@ -217,8 +222,22 @@ async def refresh(
     if not player:
         raise HTTPException(status_code=401, detail="Player not found")
     access_token = create_access_token(player.id)
-    _set_access_cookie(response, access_token, request.headers.get("User-Agent"))
-    return RefreshResponse(access_token=None, token_type="bearer")
+    user_agent = request.headers.get("User-Agent") or request.headers.get("user-agent") or ""
+    _set_access_cookie(response, access_token, user_agent)
+    # Return both access and refresh tokens as optional fallback for clients
+    # that cannot send cookies in some environments.
+    return RefreshResponse(access_token=access_token, token_type="bearer", refresh_token=refresh_plain)
+
+
+class WsTokenResponse(BaseModel):
+    token: str
+
+
+@router.get("/ws-token", response_model=WsTokenResponse)
+async def get_ws_token(current: Annotated[Player, Depends(get_current_player)]):
+    """Return a short-lived token for WebSocket auth. Client connects to ws://host/ws?token=..."""
+    token = create_access_token(current.id)
+    return WsTokenResponse(token=token)
 
 
 @router.post("/logout")

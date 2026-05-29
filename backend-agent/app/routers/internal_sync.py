@@ -4,11 +4,14 @@ from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.websocket import broadcast_units_updated
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_internal_api_key
+from app.config import settings
 from app.database import get_db
 from app.models import User, UserBalance, PlayerSnapshot, BlockedNumber, DepositRequest, PlayerWithdrawalRequest, BankAccount
 from app.models.requests import DepositRequestStatus
@@ -204,7 +207,8 @@ async def internal_create_player_withdrawal(
         status="pending",
     )
     db.add(req)
-    await db.flush()
+    await db.commit()
+    await broadcast_units_updated()
     return {
         "id": req.id,
         "player_id": req.player_id,
@@ -252,6 +256,15 @@ async def internal_list_player_withdrawals(
     ]
 
 
+def _agent_qr_full_url(stored_path: str | None) -> str | None:
+    """Return full URL for QR image so both Agent and User services can load it."""
+    if not stored_path:
+        return None
+    base = (settings.base_url or "").rstrip("/")
+    path = stored_path.lstrip("/")
+    return f"{base}/uploads/{path}" if base and path else None
+
+
 @router.get("/agents/{agent_id}/bank-accounts")
 async def internal_list_agent_bank_accounts(
     agent_id: str,
@@ -270,7 +283,7 @@ async def internal_list_agent_bank_accounts(
             "account_name": r.account_name,
             "account_number": r.account_number,
             "bank_name": r.bank_name,
-            "qr_code_url": r.qr_code_url,
+            "qr_code_url": _agent_qr_full_url(r.qr_code_url),
             "is_primary": r.is_primary,
         }
         for r in rows

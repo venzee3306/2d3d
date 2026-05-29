@@ -5,6 +5,7 @@ from app.models.transaction import Transaction
 from app.models.blocked_numbers import BlockedNumber
 from app.models.bank_account import BankAccount
 from app.models.refresh_token import RefreshToken
+from app.models.session_result_2d import SessionResult2D
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "BlockedNumber",
     "BankAccount",
     "RefreshToken",
+    "SessionResult2D",
 ]

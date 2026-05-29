@@ -47,6 +47,7 @@ async def init_db():
         BlockedNumber,
         BankAccount,
         RefreshToken,
+        SessionResult2D,
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -21,6 +21,7 @@ from app.schemas.requests import (
     UnitDepositRequestCreate,
     UnitDepositRequestResponse,
 )
+from app.websocket import broadcast_units_updated
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
@@ -45,6 +46,7 @@ async def create_deposit_request(
     )
     db.add(req)
     await db.flush()
+    await broadcast_units_updated()
     return DepositRequestResponse(
         id=req.id,
         player_id=req.player_id,
@@ -130,6 +132,7 @@ async def create_withdrawal_request(
     )
     db.add(req)
     await db.flush()
+    await broadcast_units_updated()
     return WithdrawalRequestResponse(
         id=req.id,
         user_id=req.user_id,
@@ -209,6 +212,7 @@ async def create_unit_deposit_request(
     )
     db.add(req)
     await db.flush()
+    await broadcast_units_updated()
     return UnitDepositRequestResponse(
         id=req.id,
         requester_id=req.requester_id,
@@ -288,6 +292,7 @@ async def approve_deposit(
     req.processed_by = current.id
     now = datetime.utcnow()
     db.add(Transaction(id=str(uuid.uuid4()), user_id=current.id, type=TransactionType.deposit_approve, amount=-amount, balance_before=agent_before, balance_after=agent_before - amount, related_user_id=req.player_id, related_user_name=req.player_name, timestamp=now))
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -300,6 +305,7 @@ async def reject_deposit(request_id: str, db: Annotated[AsyncSession, Depends(ge
     req.status = DepositRequestStatus.rejected
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -330,6 +336,7 @@ async def approve_withdrawal(
     now = datetime.utcnow()
     db.add(Transaction(id=str(uuid.uuid4()), user_id=current.id, type=TransactionType.withdrawal_approve, amount=-amount, balance_before=abefore, balance_after=abefore - amount, related_user_id=req.user_id, related_user_name=req.user_name, timestamp=now))
     db.add(Transaction(id=str(uuid.uuid4()), user_id=req.user_id, type=TransactionType.transfer_in, amount=amount, balance_before=rbefore, balance_after=rbefore + amount, related_user_id=current.id, related_user_name=current.name, timestamp=now))
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -342,6 +349,7 @@ async def reject_withdrawal(request_id: str, db: Annotated[AsyncSession, Depends
     req.status = WithdrawalRequestStatus.rejected
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -372,6 +380,7 @@ async def approve_unit_deposit(
     now = datetime.utcnow()
     db.add(Transaction(id=str(uuid.uuid4()), user_id=current.id, type=TransactionType.unit_deposit_approve, amount=-amount, balance_before=abefore, balance_after=abefore - amount, related_user_id=req.requester_id, related_user_name=req.requester_name, timestamp=now))
     db.add(Transaction(id=str(uuid.uuid4()), user_id=req.requester_id, type=TransactionType.transfer_in, amount=amount, balance_before=rbefore, balance_after=rbefore + amount, related_user_id=current.id, related_user_name=current.name, timestamp=now))
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -384,6 +393,7 @@ async def reject_unit_deposit(request_id: str, db: Annotated[AsyncSession, Depen
     req.status = "rejected"
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -439,13 +449,14 @@ async def approve_player_withdrawal(
         raise HTTPException(status_code=404, detail="Request not found or not pending")
     if current.id != req.agent_id:
         raise HTTPException(status_code=403, detail="Only the agent for this request can approve")
-    from app.services.user_backend_client import debit_player_withdrawal
-    ok = await debit_player_withdrawal(req.player_id, float(req.amount), request_id=req.id)
+    from app.services.user_backend_client import confirm_player_withdrawal
+    ok = await confirm_player_withdrawal(req.player_id, float(req.amount), request_id=req.id)
     if not ok:
         raise HTTPException(status_code=502, detail="Could not debit player in User Backend")
     req.status = "approved"
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
+    await broadcast_units_updated()
     return {"ok": True}
 
 
@@ -461,7 +472,12 @@ async def reject_player_withdrawal(
         raise HTTPException(status_code=404, detail="Request not found or not pending")
     if current.id != req.agent_id:
         raise HTTPException(status_code=403, detail="Only the agent for this request can reject")
+    from app.services.user_backend_client import credit_player_rejected_withdrawal
+    ok = await credit_player_rejected_withdrawal(req.player_id, float(req.amount), request_id=req.id)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Could not credit player in User Backend")
     req.status = "rejected"
     req.processed_at = datetime.utcnow()
     req.processed_by = current.id
+    await broadcast_units_updated()
     return {"ok": True}

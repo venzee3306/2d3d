@@ -34,16 +34,19 @@ async def get_db():
 
 
 async def init_db():
-    from app.models import Player, Session, Bet, Transaction, CallbackConfig, RefreshToken, BankAccount, Draw  # noqa: F401
+    from app.models import Player, Session, Bet, Transaction, CallbackConfig, RefreshToken, BankAccount, Draw, SessionResult2D  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    if not settings.default_agent_id:
-        return
+    # Seed demo player for local development.
+    # If DEFAULT_AGENT_ID is not set, fall back to backend-agent's default admin (`admin1`).
+    # This keeps `/auth/login` working with demo/demo123 even after fresh container rebuilds.
+    seed_agent_id = settings.default_agent_id or "admin1"
     async with AsyncSessionLocal() as session:
         from sqlalchemy import select
         from app.auth import hash_password
-        r = await session.execute(select(Player).limit(1))
+        # Only seed if demo user doesn't exist yet.
+        r = await session.execute(select(Player).where(Player.username == "demo").limit(1))
         if r.scalar_one_or_none() is not None:
             return
         pid = "player-001"
@@ -55,7 +58,7 @@ async def init_db():
                 password_hash=hash_password("demo123"),
                 phone_number="09123456789",
                 balance=0,
-                agent_id=settings.default_agent_id,
+                agent_id=seed_agent_id,
                 source="portal",
                 platform_id=None,
                 status="active",

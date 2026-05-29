@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     secret_key: str = "change-me-in-production"
     agent_backend_url: str = "http://localhost:8000"
+    twod_upstream_url: str = "https://luke.2dboss.com/api/luke/twod-result-live"
+    timezone: str = "Asia/Yangon"
     internal_api_key: str = "shared-internal-api-key"
     port: int = 8001  # Override with PORT in production (Render, Railway, etc.)
     default_agent_id: str | None = None

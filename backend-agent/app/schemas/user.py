@@ -12,6 +12,11 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    commission_rate: float | None = None
+    total_bet_limit: float | None = None
+    single_number_limit: float | None = None
+    payout_2d: int | None = None
+    payout_3d: int | None = None
 
 
 class UserUpdate(BaseModel):
@@ -20,6 +25,11 @@ class UserUpdate(BaseModel):
     password: str | None = None
     role: UserRole | None = None
     parent_id: str | None = None
+    commission_rate: float | None = None
+    total_bet_limit: float | None = None
+    single_number_limit: float | None = None
+    payout_2d: int | None = None
+    payout_3d: int | None = None
 
 
 class MeUpdate(BaseModel):
@@ -34,8 +44,17 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: str
+    name: str
+    username: str
+    role: UserRole
+    parent_id: str | None = None
+    commission_rate: float | None = None
+    total_bet_limit: float | None = None
+    single_number_limit: float | None = None
+    payout_2d: int | None = None
+    payout_3d: int | None = None
 
     class Config:
         from_attributes = True

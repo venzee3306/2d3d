@@ -50,7 +50,8 @@ PAYOUT_MULTIPLIER = {"2D": 85, "3D": 500}
 
 class SettleBetsRequest(BaseModel):
     """Settle all pending bets for a round. Call after draw result is known."""
-    session_id: str
+    session_id: str | None = None  # If set, settle only this session; else use date + round_name for full round.
+    date: str | None = None  # YYYY-MM-DD, required when session_id is not set (settle full round).
     game_type: str  # 2D | 3D
     round_name: str  # Morning | Evening
     winning_number: str
